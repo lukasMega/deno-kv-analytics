@@ -3,19 +3,28 @@
 // Run: deno task test
 import { assertEquals } from "@std/assert";
 import { botKind, createHandler, eq, parseUA, refGroup } from "./main.ts";
+import { loadSites } from "./sites.ts";
 
 Deno.env.set("STATS_TOKEN", "testtoken");
 
-// mirror docs-site/src/analytics.ts send(): base64(encodeURIComponent(JSON))
+// mirror client/beacon.ts send(): base64(encodeURIComponent(JSON))
 const encode = (p: Record<string, string>) =>
   btoa(encodeURIComponent(JSON.stringify(p)));
 
+// One site claiming host `x`, which is the host every request below uses — so
+// these tests exercise the Host-based resolution the real deployment uses, and
+// need no `?s=`. Multi-site behavior lives in sites_test.ts.
+const SITES = loadSites({ get: () => "test:x" });
+
 function fixture() {
   const kv = Deno.openKv(":memory:");
-  return kv.then((k) => ({ kv: k, h: createHandler(k) }));
+  return kv.then((k) => ({ kv: k, h: createHandler(k, SITES) }));
 }
 
-const beacon = (v: string, ua = "Mozilla/5.0 (Windows NT 10.0) Firefox/126.0") =>
+const beacon = (
+  v: string,
+  ua = "Mozilla/5.0 (Windows NT 10.0) Firefox/126.0",
+) =>
   new Request(`http://x/e?v=${encodeURIComponent(v)}`, {
     headers: { "user-agent": ua },
   });
@@ -27,7 +36,9 @@ const statsReq = (qs: string, token = "testtoken") =>
 
 Deno.test("pageview writes pv + derived dims", async () => {
   const { kv, h } = await fixture();
-  const res = await h(beacon(encode({ p: "/docs/intro", l: "de-DE", tz: "Europe/Berlin" })));
+  const res = await h(
+    beacon(encode({ p: "/docs/intro", l: "de-DE", tz: "Europe/Berlin" })),
+  );
   assertEquals(res.headers.get("content-type"), "image/gif");
 
   const stats = await (await h(statsReq(""))).json();
@@ -46,7 +57,9 @@ Deno.test("pageview writes a true day×hour joint counter", async () => {
   const stats = await (await h(statsReq(""))).json();
 
   const now = new Date();
-  const key = `${now.getUTCDay()}-${String(now.getUTCHours()).padStart(2, "0")}`;
+  const key = `${now.getUTCDay()}-${
+    String(now.getUTCHours()).padStart(2, "0")
+  }`;
   assertEquals(Object.keys(stats.dowhour), [key]);
   assertEquals(stats.dowhour[key], 1);
   // the joint key's hour half must agree with the standalone `hour` marginal
@@ -89,11 +102,11 @@ Deno.test("refGroup buckets hosts", () => {
 
 Deno.test("event beacon does not increment pv", async () => {
   const { kv, h } = await fixture();
-  await h(beacon(encode({ ev: "download", t: "deckbridge.zip" })));
+  await h(beacon(encode({ ev: "download", t: "release.zip" })));
   const stats = await (await h(statsReq(""))).json();
   assertEquals(stats.pv, undefined);
   assertEquals(stats.event.download, 1);
-  assertEquals(stats.event_target["deckbridge.zip"], 1);
+  assertEquals(stats.event_target["release.zip"], 1);
   kv.close();
 });
 
@@ -114,7 +127,8 @@ Deno.test("series carries a per-day bot total alongside the human metrics", asyn
   await h(beacon(encode({ ev: "bot", t: "synthetic" }))); // probe verdict
 
   const day = new Date().toISOString().slice(0, 10);
-  const stats = await (await h(statsReq(`series=1&from=${day}&to=${day}`))).json();
+  const stats = await (await h(statsReq(`series=1&from=${day}&to=${day}`)))
+    .json();
   // [day, pv, uv, sessions, bot] — bot is ua + synthetic, and pv excludes both
   assertEquals(stats.series, [[day, 1, 1, 1, 2]]);
   kv.close();
@@ -133,7 +147,9 @@ Deno.test("isbot catches JS-capable bots the old hand-rolled regex missed", asyn
 
 Deno.test("a normal browser UA is not counted as a bot", async () => {
   const { kv, h } = await fixture();
-  await h(beacon(encode({ p: "/" }), "Mozilla/5.0 (Windows NT 10.0) Firefox/126.0"));
+  await h(
+    beacon(encode({ p: "/" }), "Mozilla/5.0 (Windows NT 10.0) Firefox/126.0"),
+  );
   const stats = await (await h(statsReq(""))).json();
   assertEquals(stats.pv._, 1);
   assertEquals(stats.bot, undefined);
@@ -154,13 +170,20 @@ Deno.test("behavioral probe lands in its own dim, not `event`", async () => {
 
 Deno.test("botKind names the crawler, version-free", () => {
   // isbotMatch alone would return "Google" / "Bot" / "facebookexternalhit/1.1"
-  const k = (ua: string) => botKind(`Mozilla/5.0 (compatible; ${ua}; +http://x)`);
+  const k = (ua: string) =>
+    botKind(`Mozilla/5.0 (compatible; ${ua}; +http://x)`);
   assertEquals(k("Googlebot/2.1"), "googlebot");
   assertEquals(k("ClaudeBot/1.0"), "claudebot"); // isbotMatch alone: "Bot"
   assertEquals(k("GPTBot/1.2"), "gptbot"); // isbotMatch alone: "Bot"
-  assertEquals(botKind("Mozilla/5.0 (Macintosh) Chrome-Lighthouse"), "chrome-lighthouse");
+  assertEquals(
+    botKind("Mozilla/5.0 (Macintosh) Chrome-Lighthouse"),
+    "chrome-lighthouse",
+  );
   // same crawler, two versions → one row, not two
-  assertEquals(botKind("facebookexternalhit/1.1"), botKind("facebookexternalhit/2.0"));
+  assertEquals(
+    botKind("facebookexternalhit/1.1"),
+    botKind("facebookexternalhit/2.0"),
+  );
   assertEquals(botKind("facebookexternalhit/1.1"), "facebookexternalhit");
   assertEquals(botKind("Mozilla/5.0 Firefox/126.0"), "unknown"); // not a bot
 });
@@ -199,12 +222,18 @@ Deno.test("stats auth: 401 without token, ok via header and via query", async ()
   assertEquals((await h(new Request("http://x/stats"))).status, 401);
   assertEquals((await h(statsReq("", "wrong"))).status, 401);
   assertEquals((await h(statsReq(""))).status, 200);
-  assertEquals((await h(new Request("http://x/stats?token=testtoken"))).status, 200);
+  assertEquals(
+    (await h(new Request("http://x/stats?token=testtoken"))).status,
+    200,
+  );
   kv.close();
 });
 
 Deno.test("parseUA classifies browser/os/device", () => {
-  assertEquals(parseUA("... SamsungBrowser/23 Chrome/...").browser, "Samsung Internet");
+  assertEquals(
+    parseUA("... SamsungBrowser/23 Chrome/...").browser,
+    "Samsung Internet",
+  );
   assertEquals(parseUA("... Edg/120 Chrome/...").browser, "Edge");
   assertEquals(parseUA("iPhone ... Mobile Safari").device, "mobile");
   assertEquals(parseUA("iPad ... Safari").device, "tablet");

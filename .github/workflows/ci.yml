@@ -1,0 +1,28 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - run: deno fmt --check
+      - run: deno lint
+      - run: deno check main.ts sites.ts migrate.ts admin.ts client/beacon.ts
+      - run: deno task test
+
+      # s.js is committed (Deploy has no build step), so it must match its source
+      # — otherwise the deployed beacon silently lags behind client/beacon.ts.
+      - name: beacon build is up to date
+        run: |
+          deno task build-client
+          git diff --exit-code -- s.js
+      - run: deno task check-size

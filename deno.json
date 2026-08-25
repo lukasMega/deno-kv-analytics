@@ -1,27 +1,43 @@
 {
   "tasks": {
-    "dev": "STATS_TOKEN=${STATS_TOKEN:-devtoken} deno run -A --watch main.ts",
+    "dev": "STATS_TOKEN=${STATS_TOKEN:-devtoken} SITES=${SITES:-demo:localhost:8000} deno run -A --watch main.ts",
     "start": "deno run -A main.ts",
-    // --allow-env is the only permission the suite needs (main_test.ts sets
-    // STATS_TOKEN; the handler reads it). KV/cron come from `unstable` below, so
-    // no --unstable-kv flag. Running bare `deno test` fails without this task.
-    "test": "deno test --allow-env main_test.ts"
+    // --allow-env is the only permission the suite needs (the tests set
+    // STATS_TOKEN/SITES; the handler reads them). KV/cron come from `unstable`
+    // below, so no --unstable-kv flag. Bare `deno test` fails without this task.
+    "test": "deno test --allow-env main_test.ts sites_test.ts",
+    // Builds the browser beacon to ./s.js. Flat next to main.ts on purpose:
+    // Deno Deploy bundles sibling new-URL files but skips subdirectories.
+    "build-client": "deno bundle --platform browser --minify --format iife client/beacon.ts -o s.js",
+    // The beacon is loaded by every visitor on every page — a size regression is
+    // a real cost, so CI fails past 4KB rather than letting it drift.
+    "check-size": "deno run --allow-read scripts/check-size.ts s.js 4096",
+    "migrate": "deno run -A migrate.ts",
+    "admin": "deno run -A admin.ts"
   },
   "imports": {
     "isbot": "npm:isbot@5",
-    "@std/assert": "jsr:@std/assert@1"
+    "@std/assert": "jsr:@std/assert@1",
+    "@std/cli": "jsr:@std/cli@1"
   },
   "unstable": ["kv", "cron"],
+  // `dom` is for client/beacon.ts only — the collector itself uses no DOM API.
+  // Without it the beacon is not type-checked at all, which is how a typo in the
+  // one file every visitor loads would reach production.
+  "compilerOptions": {
+    "lib": ["deno.window", "deno.unstable", "dom", "dom.iterable"]
+  },
   // vendored uPlot: not ours to format or lint (572 lint hits, and formatting a
-  // minified bundle would defeat the point of shipping it minified). Scoped to
-  // fmt/lint only — a top-level "exclude" is also honored by deployctl and
-  // silently drops these files from the Deploy upload (they 404 at /vendor/).
-  "fmt": { "exclude": ["uPlot.iife.min.js", "uPlot.min.css"] },
-  "lint": { "exclude": ["uPlot.iife.min.js", "uPlot.min.css"] },
-  "deploy": {
-    "org": "lukasmega",
-    "app": "tst"
-  }
+  // minified bundle would defeat the point of shipping it minified). s.js is our
+  // own build output — same reasoning, it is generated, not edited. Scoped to
+  // fmt/lint only — a top-level "exclude" is also honored by the Deploy upload
+  // and silently drops these files (they 404 when requested).
+  // dashboard.html is excluded from fmt (not lint — deno lint ignores .html
+  // anyway): deno's HTML formatter explodes the hand-compacted <style> block to
+  // one property per line, a several-hundred-line diff that makes the file
+  // harder to read for no gain.
+  "fmt": {
+    "exclude": ["uPlot.iife.min.js", "uPlot.min.css", "s.js", "dashboard.html"]
+  },
+  "lint": { "exclude": ["uPlot.iife.min.js", "uPlot.min.css", "s.js"] }
 }
-
-

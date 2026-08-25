@@ -1,7 +1,10 @@
-// DeckBridge docs analytics collector — Deno Deploy (console.deno.com).
-// Cookieless, no IP, no fingerprint → no consent banner. See README.md.
+// Cookieless web analytics collector — Deno Deploy (console.deno.com).
+// No cookies, no IP, no fingerprint → no consent banner. See README.md.
 //
-// Structure: pure helpers + a `createHandler(kv)` factory are exported for
+// One deployment serves many sites: every counter is keyed under a `site`
+// segment and a request is mapped to a site by its Host (see sites.ts).
+//
+// Structure: pure helpers + a `createHandler(kv, sites)` factory are exported for
 // tests; the live server (Deno.serve) and prune cron only run when this module
 // is the entrypoint (import.meta.main) — which it is on Deploy, so the cron
 // still registers at module top level there.
@@ -12,6 +15,13 @@
 // step is needed on Deno Deploy. If a future Deploy runtime ever fails to resolve
 // it, fall back to vendoring isbot's exported `list` + `createIsbotFromList`.
 import { isbot, isbotMatch } from "isbot";
+import {
+  hostIndex,
+  loadSites,
+  resolveSite,
+  type Site,
+  tokenFor,
+} from "./sites.ts";
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -32,6 +42,10 @@ const gif = () =>
 const DASHBOARD = new URL("./dashboard.html", import.meta.url);
 const UPLOT_JS = new URL("./uPlot.iife.min.js", import.meta.url);
 const UPLOT_CSS = new URL("./uPlot.min.css", import.meta.url);
+// The browser beacon, built from client/beacon.ts by `deno task build-client`.
+// Same flat-sibling rule as the uPlot assets — it is served to every visitor's
+// page, so a 404 here is the whole product silently not collecting.
+const BEACON_JS = new URL("./s.js", import.meta.url);
 
 // Cap any dimension value so a hostile/buggy client can't blow up KV storage or
 // write-unit cost with megabyte strings.
@@ -43,25 +57,36 @@ export function parseUA(
 ): { browser: string; os: string; device: string } {
   // Order matters: Edge/Opera/Samsung all carry "Chrome" in their UA, so match
   // the more specific brand first. Brave hides as plain Chrome (by design).
-  const browser =
-    /Edg\//.test(ua)                    ? "Edge"
-    : /OPR\/|Opera/.test(ua)            ? "Opera"
-    : /SamsungBrowser/.test(ua)         ? "Samsung Internet"
-    : /Vivaldi/.test(ua)                ? "Vivaldi"
-    : /Firefox\//.test(ua)              ? "Firefox"
-    : /Chrome\//.test(ua)               ? "Chrome"
-    : /Safari\//.test(ua)               ? "Safari"
+  const browser = /Edg\//.test(ua)
+    ? "Edge"
+    : /OPR\/|Opera/.test(ua)
+    ? "Opera"
+    : /SamsungBrowser/.test(ua)
+    ? "Samsung Internet"
+    : /Vivaldi/.test(ua)
+    ? "Vivaldi"
+    : /Firefox\//.test(ua)
+    ? "Firefox"
+    : /Chrome\//.test(ua)
+    ? "Chrome"
+    : /Safari\//.test(ua)
+    ? "Safari"
     : "Other";
-  const os =
-    /Windows/.test(ua)                  ? "Windows"
-    : /iPhone|iPad|iPod/.test(ua)       ? "iOS"
-    : /Android/.test(ua)                ? "Android"
-    : /Mac OS X/.test(ua)               ? "macOS"
-    : /Linux/.test(ua)                  ? "Linux"
+  const os = /Windows/.test(ua)
+    ? "Windows"
+    : /iPhone|iPad|iPod/.test(ua)
+    ? "iOS"
+    : /Android/.test(ua)
+    ? "Android"
+    : /Mac OS X/.test(ua)
+    ? "macOS"
+    : /Linux/.test(ua)
+    ? "Linux"
     : "Other";
-  const device =
-    /iPad|Tablet/i.test(ua)                  ? "tablet"
-    : /Mobi|Android|iPhone|iPod/i.test(ua)   ? "mobile"
+  const device = /iPad|Tablet/i.test(ua)
+    ? "tablet"
+    : /Mobi|Android|iPhone|iPod/i.test(ua)
+    ? "mobile"
     : "desktop";
   return { browser, os, device };
 }
@@ -136,12 +161,41 @@ function country(req: Request): string | null {
   return c.toUpperCase();
 }
 
-export async function readStats(kv: Deno.Kv, day: string) {
-  const out: Record<string, Record<string, number>> = {};
+// Sum a key prefix into { dim: { value: count } }.
+//
+// `len` is the exact key length this layout produces, and it is load-bearing:
+// a site id is allowed to look like a date (`2026-08-25` matches the id regex),
+// so the legacy prefix ["c", day] would otherwise also match the 5-segment keys
+// of a same-named site. Rows of the wrong length are skipped, not merged.
+async function readPrefix(
+  kv: Deno.Kv,
+  prefix: Deno.KvKey,
+  len: number,
+  out: Record<string, Record<string, number>> = {},
+) {
   // .sum() stores Deno.KvU64 (bigint wrapper) — count is at .value.value
-  for await (const row of kv.list<Deno.KvU64>({ prefix: ["c", day] })) {
-    const [, , dim, value] = row.key as [string, string, string, string];
-    (out[dim] ??= {})[value] = Number(row.value.value);
+  for await (const row of kv.list<Deno.KvU64>({ prefix })) {
+    if (row.key.length !== len) continue;
+    const dim = row.key[len - 2] as string;
+    const value = row.key[len - 1] as string;
+    (out[dim] ??= {})[value] = (out[dim][value] ?? 0) + Number(row.value.value);
+  }
+  return out;
+}
+
+/**
+ * Read one site's counters for one day.
+ *
+ * `LEGACY_SITE` is the migration bridge: while `migrate.ts` is rekeying the
+ * pre-multi-site data (`["c", day, …]` → `["c", site, day, …]`), that site's
+ * rows exist in both layouts, so both are read and **summed** — migrate copies
+ * and deletes in one atomic tx per key, so a key is never counted twice. Unset
+ * the env var (and delete this branch) once the migration is verified done.
+ */
+export async function readStats(kv: Deno.Kv, site: string, day: string) {
+  const out = await readPrefix(kv, ["c", site, day], 5);
+  if (Deno.env.get("LEGACY_SITE") === site) {
+    await readPrefix(kv, ["c", day], 4, out);
   }
   return out;
 }
@@ -160,30 +214,48 @@ function statsToken(req: Request, url: URL): string {
   return m ? m[1] : (url.searchParams.get("token") ?? "");
 }
 
+// `STATS_TOKEN` is the admin token: reads any site, and is the only one that may
+// list `/sites`. Unset → no admin access at all (never "everything matches").
+function isAdmin(token: string): boolean {
+  const admin = Deno.env.get("STATS_TOKEN") ?? "";
+  return !!admin && eq(token, admin);
+}
+
 // Serve a static asset file. On a read failure return a readable 404 instead of
 // letting Deploy swallow it into an opaque 500 (which is what made this hard to
 // debug the first time around).
-async function asset(u: URL, type: string): Promise<Response> {
+async function asset(u: URL, type: string, maxAge = 86400): Promise<Response> {
   try {
     return new Response(await Deno.readTextFile(u), {
       headers: {
         "content-type": `${type}; charset=utf-8`,
-        "cache-control": "public, max-age=86400",
+        "cache-control": `public, max-age=${maxAge}`,
       },
     });
   } catch (e) {
-    return new Response(`asset unavailable: ${e instanceof Error ? e.message : e}`, {
-      status: 404,
-    });
+    return new Response(
+      `asset unavailable: ${e instanceof Error ? e.message : e}`,
+      {
+        status: 404,
+      },
+    );
   }
 }
 
-export function createHandler(kv: Deno.Kv) {
+export function createHandler(kv: Deno.Kv, sites: Map<string, Site>) {
+  const byHost = hostIndex(sites);
+
   return async (req: Request): Promise<Response> => {
     const url = new URL(req.url);
+    const site = resolveSite(url, sites, byHost);
 
     // --- beacon ingest ---
     if (req.method === "GET" && url.pathname === "/e") {
+      // Unknown site → the same gif, but nothing written. Not a 4xx: the response
+      // must not tell a prober which sites exist, and a misconfigured consumer
+      // should degrade to a no-op rather than to a broken image on every page.
+      if (!site) return gif();
+
       const ua = req.headers.get("user-agent") ?? "";
       // Count instead of silently dropping: `bot` is the total, `bot_kind` names
       // the crawler, so the filter is tunable against real traffic instead of
@@ -193,8 +265,8 @@ export function createHandler(kv: Deno.Kv) {
       // hit is noise against the pageview budget.
       if (isbot(ua)) {
         await kv.atomic()
-          .sum(["c", today(), "bot", "ua"], 1n)
-          .sum(["c", today(), "bot_kind", botKind(ua)], 1n)
+          .sum(["c", site, today(), "bot", "ua"], 1n)
+          .sum(["c", site, today(), "bot_kind", botKind(ua)], 1n)
           .commit();
         return gif();
       }
@@ -207,7 +279,9 @@ export function createHandler(kv: Deno.Kv) {
       // opaque token: base64(encodeURIComponent(JSON)) — mirror client encoding
       let d: Record<string, string> = {};
       try {
-        d = JSON.parse(decodeURIComponent(atob(url.searchParams.get("v") ?? "")));
+        d = JSON.parse(
+          decodeURIComponent(atob(url.searchParams.get("v") ?? "")),
+        );
       } catch { /* ignore malformed */ }
 
       const { browser, os, device } = parseUA(ua);
@@ -273,16 +347,30 @@ export function createHandler(kv: Deno.Kv) {
       }
 
       let tx = kv.atomic();
-      for (const [dim, value] of dims) tx = tx.sum(["c", day, dim, value], 1n);
+      for (const [dim, value] of dims) {
+        tx = tx.sum(["c", site, day, dim, value], 1n);
+      }
       await tx.commit();
       return gif();
+    }
+
+    // --- site list (admin only; powers the dashboard's site picker) ---
+    if (req.method === "GET" && url.pathname === "/sites") {
+      if (!isAdmin(statsToken(req, url))) {
+        return new Response("unauthorized", { status: 401 });
+      }
+      return Response.json([...sites.values()]);
     }
 
     // --- dashboard JSON ---
     if (req.method === "GET" && url.pathname === "/stats") {
       const token = statsToken(req, url);
-      const want = Deno.env.get("STATS_TOKEN") ?? "";
-      if (!want || !eq(token, want)) {
+      // The per-site token is checked against the site that was *resolved* for
+      // this request — never against the set of all configured tokens. Otherwise
+      // site A's token reads site B, which is the whole tenancy boundary.
+      const perSite = site ? tokenFor(site) : "";
+      const ok = isAdmin(token) || (!!perSite && eq(token, perSite));
+      if (!site || !ok) {
         return new Response("unauthorized", { status: 401 });
       }
 
@@ -293,7 +381,9 @@ export function createHandler(kv: Deno.Kv) {
         // build the inclusive day list, then read all days in parallel
         const days: string[] = [];
         for (let day = from; day <= to; day = nextDay(day)) days.push(day);
-        const parts = await Promise.all(days.map((day) => readStats(kv, day)));
+        const parts = await Promise.all(
+          days.map((day) => readStats(kv, site, day)),
+        );
 
         const out: Record<string, Record<string, number>> = {};
         // series rows: [day, pv, uv, sessions, bot] — powers the multi-line
@@ -320,12 +410,21 @@ export function createHandler(kv: Deno.Kv) {
             ]);
           }
         }
-        if (wantSeries) return Response.json({ from, to, series, ...out });
-        return Response.json({ from, to, ...out });
+        if (wantSeries) {
+          return Response.json({ site, from, to, series, ...out });
+        }
+        return Response.json({ site, from, to, ...out });
       }
 
       const day = url.searchParams.get("day") ?? today();
-      return Response.json({ day, ...await readStats(kv, day) });
+      return Response.json({ site, day, ...await readStats(kv, site, day) });
+    }
+
+    // --- browser beacon (built from client/beacon.ts) ---
+    if (req.method === "GET" && url.pathname === "/s.js") {
+      // Shorter cache than the vendored uPlot: this is the one asset that
+      // actually changes, and a stale copy silently under-reports.
+      return await asset(BEACON_JS, "text/javascript", 3600);
     }
 
     // --- vendored uPlot (served locally — no CDN dependency) ---
@@ -352,21 +451,45 @@ const RETENTION_DAYS = 400;
 // Registers the prune cron + live server. Only runs when this module is the
 // entrypoint — on Deno Deploy that's the case, so the cron still registers at
 // module top level (required or Deploy skips it). Skipped when imported by tests.
+/**
+ * Delete every counter older than `RETENTION_DAYS`, for each site.
+ *
+ * Exported for tests. The per-site loop is not cosmetic: keys now sort by site
+ * *then* day, so the "first in-range day means we're done" early exit is only
+ * valid **within one site's prefix**. A single `kv.list({prefix:["c"]})` with
+ * that break would stop at the first site's cutoff and never prune any other
+ * site — KV then grows forever.
+ */
+export async function prune(
+  kv: Deno.Kv,
+  sites: Iterable<string>,
+  now = new Date(),
+) {
+  const cutoff = new Date(now);
+  cutoff.setUTCDate(cutoff.getUTCDate() - RETENTION_DAYS);
+  const cutoffDay = cutoff.toISOString().slice(0, 10);
+  for (const site of sites) {
+    for await (const row of kv.list({ prefix: ["c", site] })) {
+      const day = row.key[2] as string;
+      if (day < cutoffDay) await kv.delete(row.key);
+      else break; // within a site, keys sort by day → we're done
+    }
+  }
+}
+
 if (import.meta.main) {
   const kv = await Deno.openKv();
+  // Throws on a malformed SITES entry — fail at boot, not silently per request.
+  const sites = loadSites();
+  if (sites.size === 0) {
+    console.warn(
+      "SITES is empty: every beacon will be a no-op. See README.md.",
+    );
+  }
 
-  // Caps unbounded KV growth. Scans forward from the tracked oldest day instead
+  // Caps unbounded KV growth. Scans forward from each site's oldest day instead
   // of listing every key, so cost is O(days pruned), not O(all rows).
-  Deno.cron("prune old analytics", "0 3 * * *", async () => {
-    const cutoff = new Date();
-    cutoff.setUTCDate(cutoff.getUTCDate() - RETENTION_DAYS);
-    const cutoffDay = cutoff.toISOString().slice(0, 10);
-    for await (const row of kv.list({ prefix: ["c"] })) {
-      const day = row.key[1] as string;
-      if (day < cutoffDay) await kv.delete(row.key);
-      else break; // keys sort by day → first in-range day means we're done
-    }
-  });
+  Deno.cron("prune old analytics", "0 3 * * *", () => prune(kv, sites.keys()));
 
-  Deno.serve(createHandler(kv));
+  Deno.serve(createHandler(kv, sites));
 }

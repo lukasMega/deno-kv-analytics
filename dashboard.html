@@ -96,6 +96,11 @@
     <h2>2 · Analytics</h2>
     <div class="row">
       <div><label>token</label><input id="token" value="devtoken"></div>
+      <div>
+        <label>site</label>
+        <input id="site" list="siteList" placeholder="site id" autocomplete="off">
+        <datalist id="siteList"></datalist>
+      </div>
       <div><label>day (overrides period below)</label><input id="day" type="date"></div>
     </div>
     <div class="periods" id="periods">
@@ -181,7 +186,7 @@
       </div>
       <div class="row">
         <div><label>languages (ls)</label><input id="ls" value="en-US,en"></div>
-        <div><label>host (h)</label><input id="h" value="docs.deckbridge.app"></div>
+        <div><label>host (h)</label><input id="h" value="docs.example.com"></div>
       </div>
       <button id="fire">Send beacon</button>
       <button id="seed" class="alt">Seed 30 random</button>
@@ -213,7 +218,12 @@ async function fire(over) {
   if (over?.b) payload.b = over.b;
   if (over?.ev) { payload.ev = over.ev; if (over.t) payload.t = over.t; }
   const v = btoa(encodeURIComponent(JSON.stringify(payload)));
-  const res = await fetch("/e?" + new URLSearchParams({ v }));
+  // top-level `s` is the tenant site id (separate from any `s` inside the
+  // base64 payload above, which is an unrelated visitor-session flag)
+  const params = { v };
+  const site = $("site").value.trim();
+  if (site) params.s = site;
+  const res = await fetch("/e?" + new URLSearchParams(params));
   return res.status;
 }
 
@@ -223,6 +233,10 @@ async function fire(over) {
 // stats fetch with the token in an Authorization header (keeps the secret out
 // of the URL / access logs; server also accepts ?token= for curl).
 function statsFetch(path) {
+  if (path.startsWith("/stats")) {
+    const site = $("site").value.trim();
+    if (site) path += (path.includes("?") ? "&" : "?") + "site=" + encodeURIComponent(site);
+  }
   return fetch(path, { headers: { authorization: "Bearer " + $("token").value } });
 }
 
@@ -231,6 +245,21 @@ async function tokenOk() {
     const res = await statsFetch("/stats?day=" + todayIso());
     return res.status !== 401;
   } catch { return false; }
+}
+
+// /sites requires the admin token — a per-site token gets 401 here, which is
+// expected (not an error): the datalist just stays empty and the user types
+// the site id by hand. One control (input + datalist) covers both cases
+// instead of swapping between a <select> and a text input.
+async function loadSites() {
+  const dl = $("siteList");
+  try {
+    const res = await statsFetch("/sites");
+    if (!res.ok) { dl.innerHTML = ""; return; }
+    const sites = await res.json();
+    dl.innerHTML = sites.map((s) =>
+      '<option value="' + esc(s.id) + '">' + esc(s.host || s.id) + "</option>").join("");
+  } catch { dl.innerHTML = ""; }
 }
 
 $("fire").onclick = async () => {
@@ -251,7 +280,7 @@ const PATHS = ["/", "/docs/intro", "/docs/setup", "/docs/protocol", "/faq"];
 const REFS  = ["google.com", "github.com", "direct", "duckduckgo.com", "twitter.com", "news.ycombinator.com"];
 const LANGS = ["en-US", "de-DE", "fr-FR", "es-ES", "en-GB"];
 const TZS   = ["Europe/Berlin", "America/New_York", "Asia/Tokyo", "UTC"];
-const HOSTS = ["docs.deckbridge.app", "localhost:3000", "deckbridge.app"];
+const HOSTS = ["docs.example.com", "localhost:3000", "example.com"];
 const VWS   = ["<640", "640-1024", ">1024"];
 const UTM_SOURCES   = ["newsletter", "twitter", "github"];
 const UTM_MEDIUMS   = ["email", "social", "referral"];
@@ -259,7 +288,7 @@ const UTM_CAMPAIGNS = ["launch", "summer26"];
 const EVENTS = [
   { ev: "outbound", t: "github.com" },
   { ev: "outbound", t: "twitter.com" },
-  { ev: "download", t: "deckbridge-v1.2.3.zip" },
+  { ev: "download", t: "release-v1.2.3.zip" },
 ];
 // behavioral-probe verdicts, so the human-interaction KPI and the `hi`/`bot`
 // breakdowns aren't stuck at zero when seeding locally
@@ -357,6 +386,7 @@ function loadUplot() {
 // without refetching.
 const BOTS_KEY = "docs-analytics.showBots";
 let showBots = localStorage.getItem(BOTS_KEY) === "1";
+const SITE_KEY = "da_site";
 
 let chart = null;
 async function renderChart(series) {
@@ -633,7 +663,7 @@ let lastRender = null;
 async function renderAnalytics(data, prior, from, to) {
   lastRender = { data, prior, from, to };
   $("analytics").style.display = "";
-  $("rangeLabel").textContent = fmtRange(from, to);
+  $("rangeLabel").textContent = $("site").value.trim() + " · " + fmtRange(from, to);
   renderKpis(data, prior);
   await renderChart(data.series || []);
   renderHeatmap(data.dowhour);
@@ -664,6 +694,13 @@ let lastData = null;
 
 async function loadStats() {
   const m = $("loadMsg");
+  // multi-tenant: every /stats row is namespaced by site, so an empty site
+  // would just come back empty — don't bother firing the request
+  if (!$("site").value.trim()) {
+    m.className = "msg"; m.textContent = "pick a site first";
+    $("analytics").style.display = "none";
+    return;
+  }
   const dayVal = $("day").value.trim();
   let from, to;
   if (dayVal) { from = to = dayVal; }
@@ -706,6 +743,11 @@ $("showBots").onchange = () => {
   if (r) renderAnalytics(r.data, r.prior, r.from, r.to);
 };
 
+$("site").value = localStorage.getItem(SITE_KEY) || "";
+$("site").oninput = () => localStorage.setItem(SITE_KEY, $("site").value.trim());
+$("site").onchange = loadStats;
+$("token").onchange = loadSites;
+
 function csvCell(v) {
   const s = String(v);
   return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
@@ -724,7 +766,8 @@ $("exportCsv").onclick = () => {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = "docs-analytics.csv";
+  const site = $("site").value.trim() || "site";
+  a.download = "stats-" + site + "-" + lastRender.from + "_" + lastRender.to + ".csv";
   a.click();
   URL.revokeObjectURL(url);
 };
@@ -733,6 +776,7 @@ $("day").min = LAUNCH;
 $("day").max = todayIso();
 
 setActivePeriodButton();
+loadSites();
 loadStats();
 </script>
 </body>

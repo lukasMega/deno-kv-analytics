@@ -1,0 +1,25 @@
+# Editors
+.idea/
+.vscode/
+*.swp
+
+# macOS
+.DS_Store
+
+# Local Deno KV (SQLite-backed) — `deno task dev` / test scratch DBs
+*.db
+*.db-shm
+*.db-wal
+kv.sqlite3*
+
+# Secrets / local config
+.env
+.env.*
+!.env.example
+
+# Local scratch server (hardcodes absolute paths)
+_smoke.ts
+
+# NOTE: s.js is build output but IS committed on purpose — Deno Deploy runs the
+# repo with no build step, so the beacon must be in the tree. Rebuild with
+# `deno task build-client` and commit the result.
