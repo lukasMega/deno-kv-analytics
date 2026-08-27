@@ -19,7 +19,15 @@ const REPO = 'deno-kv-analytics';
 // baked into the published HTML as a `<script src>` that every visitor can read
 // — a browser beacon URL cannot be secret. Point a custom domain at the
 // collector if the *.deno.net host itself should stay unadvertised.
-const COLLECTOR = process.env.COLLECTOR_ORIGIN;
+// Scheme is optional in the env var: a bare `stats.example.com` would otherwise
+// build a relative `<script src>` that resolves against the docs host and 404s,
+// with no build error.
+const COLLECTOR_RAW = process.env.COLLECTOR_ORIGIN?.trim().replace(/\/+$/, '');
+const COLLECTOR = COLLECTOR_RAW
+  ? /^https?:\/\//.test(COLLECTOR_RAW)
+    ? COLLECTOR_RAW
+    : `https://${COLLECTOR_RAW}`
+  : undefined;
 
 // Must be an id in the collector's `SITES` env var — an unlisted id resolves to
 // null, and the beacon then returns the same gif while writing nothing, so a
@@ -63,6 +71,9 @@ const config: Config = {
   // *.github.io is a shared host that no site can claim, so resolveSite falls
   // through to the `?s=` branch, which only accepts an allowlisted id.
   // localhost is skipped by the beacon, so `npm start` writes nothing.
+  // Guarded: without COLLECTOR_ORIGIN this would emit `src="undefined/s.js"`,
+  // a relative URL that 404s against the docs host on every page, with no build
+  // error. Unset must mean no tag at all.
   headTags: COLLECTOR
     ? [
         {
