@@ -1,28 +1,22 @@
 {
   "tasks": {
-    // Fixed dev config, not `${STATS_TOKEN:-devtoken}`: deno_task_shell has no
-    // default-value expansion, so that form is passed through literally and
-    // loadSites throws on the site id `${SITES`. To run with your own env, use
-    // `deno task start` (or `mise run dev`, which is a real shell).
-    // :8123, not :8000 — 8000 is the default half the JS dev servers on a
-    // machine already claim, and the collector's only symptom is AddrInUse.
+    // Fixed values: deno_task_shell has no `${VAR:-default}` expansion, it would
+    // be passed through literally and loadSites would throw. Own env: use
+    // `deno task start`. :8123 because :8000 is usually already taken.
     "dev": "PORT=8123 STATS_TOKEN=devtoken SITES=demo:localhost:8123 deno run -A --watch src/main.ts",
     "start": "deno run -A src/main.ts",
-    // --allow-env: the tests set STATS_TOKEN/SITES and the handler reads them.
-    // --allow-net/--allow-read are for e2e_test.ts alone (it boots a real
-    // listener and the handler reads the sibling assets off disk). KV/cron come
-    // from `unstable` below, so no --unstable-kv flag. Bare `deno test` fails
-    // without this task.
+    // --allow-env: tests set STATS_TOKEN/SITES. --allow-net/--allow-read: for
+    // e2e_test.ts alone (real listener + assets read off disk). Bare
+    // `deno test` fails without these.
     "test": "deno test --allow-env --allow-net --allow-read src/main_test.ts src/sites_test.ts src/e2e_test.ts",
-    // Real handler + in-memory KV pre-seeded with 30 days of fake traffic, for
-    // dashboard screenshots and manual UI work. Never touches local/real KV.
+    // Real handler + in-memory KV seeded with 30 days of fake traffic, for
+    // screenshots and manual UI work. Never touches local/real KV.
     "demo": "deno run -A scripts/demo-server.ts",
-    // Builds the browser beacon to src/s.js. Flat next to src/main.ts on
-    // purpose: Deno Deploy bundles sibling new-URL files but skips
-    // subdirectories — that is also why there is no src/vendor/.
+    // Output must sit flat next to src/main.ts: Deploy bundles sibling new-URL
+    // files but skips subdirectories (also why there is no src/vendor/).
     "build-client": "deno bundle --platform browser --minify --format iife src/client/beacon.ts -o src/s.js",
-    // The beacon is loaded by every visitor on every page — a size regression is
-    // a real cost, so CI fails past 4KB rather than letting it drift.
+    // Every visitor loads the beacon, so size regressions cost real bytes: CI
+    // fails past 4KB rather than letting it drift.
     "check-size": "deno run --allow-read scripts/check-size.ts src/s.js 4096",
     "migrate": "deno run -A src/migrate.ts",
     "admin": "deno run -A src/admin.ts"
@@ -33,35 +27,25 @@
     "@std/cli": "jsr:@std/cli@1"
   },
   "unstable": ["kv", "cron"],
-  // `dom` is for client/beacon.ts only — the collector itself uses no DOM API.
-  // Without it the beacon is not type-checked at all, which is how a typo in the
-  // one file every visitor loads would reach production.
+  // `dom` is for client/beacon.ts only (the collector uses no DOM API). Without
+  // it the beacon is not type-checked at all.
   "compilerOptions": {
     "lib": ["deno.window", "deno.unstable", "dom", "dom.iterable"]
   },
-  // vendored uPlot: not ours to format or lint (572 lint hits, and formatting a
-  // minified bundle would defeat the point of shipping it minified). s.js is our
-  // own build output — same reasoning, it is generated, not edited. Scoped to
-  // fmt/lint only — a top-level "exclude" is also honored by the Deploy upload
-  // and silently drops these files (they 404 when requested).
-  // dashboard.html/help.html are excluded from fmt (not lint — deno lint ignores
-  // .html anyway): deno's HTML formatter re-indents the whole document inside
-  // <html> and reflows the attribute-heavy control markup, a whole-file diff on
-  // every edit that makes both harder to read for no gain. Their CSS and JS live
-  // in real .css/.js siblings, which fmt does own.
-  // website/ is the Docusaurus docs site: a Node/React project with its own
-  // toolchain and prettier defaults (single quotes, no trailing markdown
-  // reflow). Deno's fmt/lint would fight it and CI would fail on both sides.
+  // Scoped to fmt/lint only: a top-level "exclude" is also honored by the Deploy
+  // upload and silently drops these files (they 404). uPlot is vendored and s.js
+  // is generated; website/ is Docusaurus with its own prettier config.
   "fmt": {
     "exclude": [
       "src/uPlot.iife.min.js",
       "src/uPlot.min.css",
       "src/s.js",
+      // deno's HTML formatter re-indents the whole document and reflows the
+      // attribute-heavy control markup: whole-file diff on every edit.
       "src/dashboard.html",
       "src/help.html",
-      // same reasoning one level down: deno's CSS formatter puts every property
-      // on its own line, turning 114 hand-grouped lines into ~500 and burying
-      // the comments that explain the color choices.
+      // deno's CSS formatter puts every property on its own line, turning 114
+      // hand-grouped lines into ~500 and burying the color-choice comments.
       "src/dashboard.css",
       "website/"
     ]
