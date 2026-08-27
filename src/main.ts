@@ -13,6 +13,7 @@
 // Bare specifier, not inline — `deno lint` rejects inline npm:/jsr: imports.
 // See classify.ts for why isbot resolves without a build step on Deploy.
 import { isbot } from "isbot";
+import { badgeSvg, formatCount, safeColor, safeLabel } from "./badge.ts";
 import { botKind, clamp, country, parseUA, refGroup } from "./classify.ts";
 import { openKv } from "./kv.ts";
 import {
@@ -103,6 +104,34 @@ export async function readStats(kv: Deno.Kv, site: string, day: string) {
     await readPrefix(kv, ["c", day], 4, out);
   }
   return out;
+}
+
+/**
+ * Sum the `pv` counter over the last `days` days (today inclusive).
+ *
+ * Point reads, not `readStats`: the badge needs one number, and a per-day
+ * `kv.list` would walk every dim of every day (hundreds of keys) to find it.
+ * `getMany` takes at most 10 keys per call, hence the chunking — 30 days is 3
+ * round trips.
+ */
+export async function readPvRange(
+  kv: Deno.Kv,
+  site: string,
+  days: number,
+  now = new Date(),
+): Promise<number> {
+  const keys: Deno.KvKey[] = [];
+  for (let i = 0; i < days; i++) {
+    const d = new Date(now);
+    d.setUTCDate(d.getUTCDate() - i);
+    keys.push(["c", site, d.toISOString().slice(0, 10), "pv", "_"]);
+  }
+  let total = 0;
+  for (let i = 0; i < keys.length; i += 10) {
+    const rows = await kv.getMany<Deno.KvU64[]>(keys.slice(i, i + 10));
+    for (const row of rows) if (row.value) total += Number(row.value.value);
+  }
+  return total;
 }
 
 function nextDay(day: string): string {
@@ -331,6 +360,42 @@ export function createHandler(kv: Deno.Kv, sites: Map<string, Site>) {
 
       const day = url.searchParams.get("day") ?? today();
       return Response.json({ site, day, ...await readStats(kv, site, day) });
+    }
+
+    // --- public README badge (SVG) ---
+    // The only unauthenticated read in the app, so it is opt-in per site via
+    // `BADGE_SITES` and exposes exactly one number: the `pv` total over a
+    // window. No dim breakdown, no bot/event data, no way to widen it by param.
+    // Unset BADGE_SITES → no site has a badge (never "all sites").
+    if (req.method === "GET" && url.pathname === "/badge") {
+      const allowed = (Deno.env.get("BADGE_SITES") ?? "")
+        .split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
+      // Same 404 for "no such site" and "not opted in": a prober must not be
+      // able to enumerate site ids, same reason /e answers a gif either way.
+      if (!site || !allowed.includes(site)) {
+        return new Response("not found", { status: 404 });
+      }
+
+      const n = Number(url.searchParams.get("days") ?? 30);
+      const days = Math.min(
+        Math.max(Number.isFinite(n) ? Math.floor(n) : 30, 1),
+        RETENTION_DAYS,
+      );
+      const total = await readPvRange(kv, site, days);
+      const svg = badgeSvg(
+        safeLabel(url.searchParams.get("label"), `views (${days}d)`),
+        formatCount(total),
+        safeColor(url.searchParams.get("color")),
+      );
+      return new Response(svg, {
+        headers: {
+          "content-type": "image/svg+xml; charset=utf-8",
+          // GitHub proxies README images through Camo, which caches them, so a
+          // shorter TTL buys nothing but load. 5 min keeps a manual refresh
+          // (?days=…) responsive during setup.
+          "cache-control": "public, max-age=300",
+        },
+      });
     }
 
     // --- browser beacon (built from client/beacon.ts) ---

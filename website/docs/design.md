@@ -1,5 +1,5 @@
 ---
-sidebar_position: 8
+sidebar_position: 9
 title: Design notes
 description: Why the schema, the write budget, the bot handling and the Deploy layout are the way they are — the reasoning behind the collector, in one place.
 ---

@@ -21,7 +21,7 @@ schema/bot-detection plans (gitignored, absent from a fresh clone).
 ```bash
 deno task dev            # build-client, then watch on :8123 (devtoken, demo:localhost:8123)
 deno task demo           # seeded in-memory UI, touches no KV on disk
-deno task test           # main_test.ts sites_test.ts kv_test.ts e2e_test.ts
+deno task test           # main_test sites_test kv_test badge_test e2e_test
 deno task build-client   # src/client/beacon.ts -> src/s.js (minified IIFE)
 deno task check-size     # fails if src/s.js > 4096 bytes
 deno fmt && deno lint
@@ -88,9 +88,12 @@ tooling that never ships.
   call, which is what Deploy needs. Also exports `taskArgs()`: both CLIs must
   parse through it, because `deno task x -- …` forwards a literal `--` that
   parseArgs reads as the end-of-flags terminator, silently dropping every flag.
+- `src/badge.ts` — README badge SVG: `badgeSvg`, `formatCount`, `safeLabel`,
+  `safeColor`. Pure (no KV, no Deno API); `main.ts` owns the `/badge` route and
+  the reading.
 
-Routes: `GET /e` (beacon → 1×1 gif), `/stats`, `/sites`, `/dashboard`, `/help`,
-`/s.js`, `/vendor/uPlot.*`, the `UI_ASSETS` table (`/dashboard.css`,
+Routes: `GET /e` (beacon → 1×1 gif), `/stats`, `/sites`, `/badge`, `/dashboard`,
+`/help`, `/s.js`, `/vendor/uPlot.*`, the `UI_ASSETS` table (`/dashboard.css`,
 `/dashboard.js`, `/dash-charts.js`, `/da-common.js`, `/help.js`), `/` → `ok`.
 Both HTML pages are ungated: they carry no secret, the token is typed in, and a
 new operator must reach `/help` before they have one.
@@ -127,6 +130,13 @@ site only, never against the set of all tokens. `STATS_TOKEN` is admin (reads
 any site, only token allowed on `/sites`); `STATS_TOKEN_<ID>` is per-site
 (`my-site` → `STATS_TOKEN_MY_SITE`). Unset must mean "no access", never "any
 token matches".
+
+**`/badge` is the only unauthenticated read.** Opt-in per site via `BADGE_SITES`
+(unset → no badge, never "all sites"), and it exposes exactly one number: the
+`pv` total over a clamped window, read with point `getMany`s, never `readStats`.
+A site that did not opt in returns the same 404 as one that does not exist —
+otherwise the badge enumerates site ids. Widening it to another dim reopens the
+authenticated-read boundary.
 
 **`prune` loops per site.** Keys sort by site then day, so the "first in-range
 day → stop" early exit is only valid inside one site's prefix.

@@ -1,5 +1,7 @@
 # deno-kv-analytics
 
+[![views](https://tst.lukasmega.deno.net/badge?site=deno-kv-analytics)](https://lukasmega.github.io/deno-kv-analytics/badge)
+
 Cookieless pageview collector on Deno KV. No cookies, no IP storage, no
 fingerprint → **no consent banner**. Stores daily aggregate counts. Runs on the
 **new** Deno Deploy ([`console.deno.com`](https://console.deno.com)).
@@ -62,10 +64,21 @@ Step by step, with links to the official Deno docs:
 | `SITES`                            | **required** — allowlist, `id[:host]` comma-separated, e.g. `acme:stats.acme.dev,blog` |
 | `STATS_TOKEN`                      | **required** — admin token: reads any site, the only token allowed on `/sites`         |
 | `STATS_TOKEN_<ID>`                 | per-site token (`my-site` → `STATS_TOKEN_MY_SITE`); reads only that site               |
+| `BADGE_SITES`                      | site ids allowed a public README badge; unset → none                                   |
 | `PORT` · `KV_PATH` · `LEGACY_SITE` | self-hosting, local KV file, migration bridge                                          |
 
 Full semantics, Host→site resolution and the operator CLI:
 **[Configuration](https://lukasmega.github.io/deno-kv-analytics/configuration)**.
+
+## Badge it
+
+```markdown
+![views](https://stats.example.com/badge?site=acme)
+```
+
+An SVG view counter for a README — the badge at the top of this file is this
+collector counting its own docs site. Opt-in per site, one number, no token:
+**[Badge](https://lukasmega.github.io/deno-kv-analytics/badge)**.
 
 <details>
 <summary><b>Tasks</b></summary>

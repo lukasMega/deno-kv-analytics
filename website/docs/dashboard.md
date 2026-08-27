@@ -22,6 +22,10 @@ description: Endpoints, the auth model, and what the dashboard renders.
   unresolved site.
 - **`GET /sites`** — `[{id, host}]`, **admin token only**. Powers the dashboard's
   site picker; a per-site token gets 401 there and you type the id instead.
+- **`GET /badge?site=<id>&days=30`** — an SVG counter for a README, the one
+  **unauthenticated** read. Opt-in per site via `BADGE_SITES`; see
+  [Badge](./badge.md). **404** for a site that did not opt in _and_ for one that
+  does not exist — the two are indistinguishable on purpose.
 - **`GET /dashboard`** — the analytics UI. **`GET /help`** — guided setup. Both
   are served ungated: they hold no secret, the token is typed into the page, and
   a new operator has to reach `/help` _before_ they have a working token. Their
