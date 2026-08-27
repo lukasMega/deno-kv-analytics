@@ -16,13 +16,13 @@ jobs:
 
       - run: deno fmt --check
       - run: deno lint
-      - run: deno check main.ts sites.ts migrate.ts admin.ts client/beacon.ts
+      - run: deno check src/main.ts src/sites.ts src/migrate.ts src/admin.ts src/client/beacon.ts
       - run: deno task test
 
-      # s.js is committed (Deploy has no build step), so it must match its source
-      # — otherwise the deployed beacon silently lags behind client/beacon.ts.
+      # src/s.js is committed (Deploy has no build step), so it must match its
+      # source — otherwise the deployed beacon silently lags behind beacon.ts.
       - name: beacon build is up to date
         run: |
           deno task build-client
-          git diff --exit-code -- s.js
+          git diff --exit-code -- src/s.js
       - run: deno task check-size

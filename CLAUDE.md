@@ -8,21 +8,26 @@ code in this repository.
 Cookieless, multi-tenant pageview collector on Deno KV, deployed to the **new**
 Deno Deploy (`console.deno.com`, not `deployctl`/Deploy Classic). No cookies, no
 IP, no fingerprint → no consent banner. `README.md` documents the data model,
-tenancy and privacy reasoning in depth and is current; `docs/design-notes/`
+tenancy and privacy reasoning in depth and is current; `.claude/design-notes/`
 holds the older plans behind the schema and the bot detection.
 
 ## Commands
 
 ```bash
-deno task dev            # watch mode on :8000, STATS_TOKEN=devtoken, SITES=demo:localhost:8000
-deno task test           # deno test --allow-env main_test.ts sites_test.ts
-deno task build-client   # client/beacon.ts -> s.js (minified IIFE)
-deno task check-size     # fails if s.js > 4096 bytes
+deno task dev            # watch mode on :8123, STATS_TOKEN=devtoken, SITES=demo:localhost:8123
+deno task test           # deno test --allow-env src/main_test.ts src/sites_test.ts
+deno task build-client   # src/client/beacon.ts -> src/s.js (minified IIFE)
+deno task check-size     # fails if src/s.js > 4096 bytes
 deno fmt && deno lint
 ```
 
+`mise.toml` wraps the same tasks (`mise run test|lint|check|beforeCommit`);
+`beforeCommit` is the CI job in one command. `deno task` still works standalone.
+`mise run docs` / `docs-build` drive the Docusaurus site in `website/`; they are
+kept out of `beforeCommit` so the Deno CI job needs no Node toolchain.
+
 Single test:
-`deno test --allow-env --filter "prune walks every site" sites_test.ts`
+`deno test --allow-env --filter "prune walks every site" src/sites_test.ts`
 
 Bare `deno test` fails — the suite needs `--allow-env`, hence the task. KV/cron
 come from `unstable: ["kv","cron"]` in deno.json, so no `--unstable-*` flags.
@@ -36,18 +41,25 @@ deno task migrate -- --site <id> [--dry-run]
 
 ## Architecture
 
-- `main.ts` — pure helpers (`parseUA`, `botKind`, `refGroup`, `eq`, `readStats`,
-  `prune`) + `createHandler(kv, sites)`. `Deno.serve` and `Deno.cron` run only
-  under `import.meta.main` so tests can import the handler; on Deploy that guard
-  is true, which is why the cron still registers at module top level.
-- `sites.ts` — tenancy: `loadSites()` parses `SITES`, `resolveSite()` maps a
+All application code lives in `src/`, including the runtime assets — they must
+stay flat siblings of `src/main.ts` (see the Deploy invariant below). `scripts/`
+holds build tooling that never ships.
+
+- `src/main.ts` — pure helpers (`parseUA`, `botKind`, `refGroup`, `eq`,
+  `readStats`, `prune`) + `createHandler(kv, sites)`. `Deno.serve` and
+  `Deno.cron` run only under `import.meta.main` so tests can import the handler;
+  on Deploy that guard is true, which is why the cron still registers at module
+  top level.
+- `src/sites.ts` — tenancy: `loadSites()` parses `SITES`, `resolveSite()` maps a
   request to a site id, `tokenFor()` maps an id to its env var.
-- `client/beacon.ts` — the browser script, built to `s.js` and served by the
-  collector at `/s.js`. Edit the `.ts`; `s.js` is generated (and
-  fmt/lint-excluded).
-- `dashboard.html` — single-file UI served at `/dashboard`, fetches `/stats` and
-  `/sites`, renders with vendored uPlot.
-- `admin.ts` / `migrate.ts` — CLI; both export their functions for tests.
+- `src/client/beacon.ts` — the browser script, built to `src/s.js` and served by
+  the collector at `/s.js`. Edit the `.ts`; `s.js` is generated (and
+  fmt/lint-excluded). The `client/` subdir is safe: it is build input, never
+  read at runtime.
+- `src/dashboard.html` — single-file UI served at `/dashboard`, fetches `/stats`
+  and `/sites`, renders with vendored uPlot.
+- `src/admin.ts` / `src/migrate.ts` — CLI; both export their functions for
+  tests.
 
 Routes: `GET /e` (beacon → 1×1 gif), `/stats`, `/sites`, `/dashboard`, `/s.js`,
 `/vendor/uPlot.*`, `/` → `ok`.
@@ -55,9 +67,11 @@ Routes: `GET /e` (beacon → 1×1 gif), `/stats`, `/sites`, `/dashboard`, `/s.js
 ## Invariants that break silently if violated
 
 **Deploy bundles only flat siblings of the entrypoint.** `dashboard.html`,
-`s.js`, `uPlot.iife.min.js`, `uPlot.min.css` must stay next to `main.ts` and be
-read via `new URL("./x", import.meta.url)` + `Deno.readTextFile`. Subdirectories
-are not uploaded and `with { type: "text" }` is ignored at runtime. Same reason
+`s.js`, `uPlot.iife.min.js`, `uPlot.min.css` must stay next to `main.ts` — now
+`src/main.ts` — and be read via `new URL("./x", import.meta.url)` +
+`Deno.readTextFile`. This is why there is no `src/vendor/` for the uPlot pair:
+subdirectories are not uploaded and `with { type: "text" }` is ignored at
+runtime. It is also why the Deploy entrypoint is `src/main.ts`. Same reason
 `deno.json` scopes excludes to `fmt`/`lint` only — a top-level `exclude` also
 drops the files from the Deploy upload and they 404.
 

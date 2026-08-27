@@ -17,26 +17,29 @@ Add one tag to a page and you are collecting:
 
 ## Files
 
-| file               | what                                                                                  |
-| ------------------ | ------------------------------------------------------------------------------------- |
-| `main.ts`          | collector: `/e`, `/stats`, `/sites`, `/s.js`, `/dashboard`                            |
-| `sites.ts`         | site allowlist, Host→site resolution, per-site tokens                                 |
-| `client/beacon.ts` | browser beacon → built to `s.js`, served at `/s.js`                                   |
-| `migrate.ts`       | one-shot rekey of pre-multi-site data                                                 |
-| `admin.ts`         | operator CLI: list / usage / delete a site                                            |
-| `dashboard.html`   | UI served at `/dashboard`                                                             |
-| `*_test.ts`        | round-trip tests over in-memory KV (`deno task test`)                                 |
-| `uPlot.*`          | vendored uPlot js+css (flat, sibling of `main.ts` — see below), served at `/vendor/*` |
-| `deno.json`        | tasks + `unstable: [kv, cron]`                                                        |
+All application code is under `src/`; `scripts/` is build tooling that never
+ships.
+
+| file                      | what                                                                                       |
+| ------------------------- | ------------------------------------------------------------------------------------------ |
+| `src/main.ts`             | collector: `/e`, `/stats`, `/sites`, `/s.js`, `/dashboard` — also the Deploy entrypoint    |
+| `src/sites.ts`            | site allowlist, Host→site resolution, per-site tokens                                      |
+| `src/client/beacon.ts`    | browser beacon → built to `src/s.js`, served at `/s.js`                                    |
+| `src/migrate.ts`          | one-shot rekey of pre-multi-site data                                                      |
+| `src/admin.ts`            | operator CLI: list / usage / delete a site                                                 |
+| `src/dashboard.html`      | UI served at `/dashboard`                                                                  |
+| `src/*_test.ts`           | round-trip tests over in-memory KV (`deno task test`)                                      |
+| `src/uPlot.*`             | vendored uPlot js+css (flat sibling of `src/main.ts`, **not** a `vendor/` dir — see below) |
+| `deno.json` / `mise.toml` | tasks + `unstable: [kv, cron]` / the same tasks under `mise run`                           |
 
 ## Local run (real KV, SQLite-backed)
 
 ```bash
-deno task build-client   # client/beacon.ts -> s.js
-deno task dev            # http://localhost:8000  (STATS_TOKEN=devtoken, SITES=demo:localhost:8000)
+deno task build-client   # src/client/beacon.ts -> src/s.js
+deno task dev            # http://localhost:8123  (STATS_TOKEN=devtoken, SITES=demo:localhost:8123)
 ```
 
-Then open **http://localhost:8000/dashboard** — the same code that deploys. Pick
+Then open **http://localhost:8123/dashboard** — the same code that deploys. Pick
 the site (`demo`), send a beacon (or "Seed 30 random"), then Load with token
 `devtoken`.
 
@@ -69,9 +72,9 @@ prefixes on the shared write budget, which is why the allowlist is not optional.
 
 ## Endpoints
 
-- **`GET /s.js`** — the browser beacon (built from `client/beacon.ts`, ~2.8KB
-  minified). Config comes off the script tag: `data-site` (optional on a mapped
-  custom domain) and `data-dev="1"` to collect from localhost, which is
+- **`GET /s.js`** — the browser beacon (built from `src/client/beacon.ts`,
+  ~2.8KB minified). Config comes off the script tag: `data-site` (optional on a
+  mapped custom domain) and `data-dev="1"` to collect from localhost, which is
   otherwise skipped. The endpoint is the script's own origin, so the beacon is
   always first-party to whatever domain served it.
 - **`GET /e?s=<site>&v=<base64>`** — beacon, sent as a 1×1 gif-pixel image
@@ -109,12 +112,13 @@ prefixes on the shared write budget, which is why the allowlist is not optional.
   **vendored** uPlot (no CDN dependency). `GET /` — `ok`.
 
 **Deploy caveat** (bit this project once): asset files must live **flat** beside
-`main.ts` — not in a subdirectory — and be read with `Deno.readTextFile`. Deno
-Deploy bundles sibling new-URL files but skips subdirs, and ignores
-`with { type: "text" }` at runtime. That applies to `dashboard.html`, `s.js` and
-the uPlot pair. It is also why `deno.json` scopes its excludes to `fmt`/`lint`
-only: a top-level `exclude` is honored by the Deploy upload and silently drops
-those files (they 404).
+the entrypoint `src/main.ts` — not in a subdirectory — and be read with
+`Deno.readTextFile`. Deno Deploy bundles sibling new-URL files but skips
+subdirs, and ignores `with { type: "text" }` at runtime. That applies to
+`src/dashboard.html`, `src/s.js` and the uPlot pair — which is why the vendored
+uPlot sits flat in `src/` rather than in a `vendor/` folder. It is also why
+`deno.json` scopes its excludes to `fmt`/`lint` only: a top-level `exclude` is
+honored by the Deploy upload and silently drops those files (they 404).
 
 ## Data model (Deno KV)
 
@@ -264,7 +268,7 @@ improvisation — the site is a KV prefix.
 ## curl smoke test
 
 ```bash
-BASE=http://localhost:8000                 # or https://stats.<yourdomain>
+BASE=http://localhost:8123                 # or https://stats.<yourdomain>
 
 V=$(deno eval 'console.log(btoa(encodeURIComponent(JSON.stringify(
   {p:"/docs/intro",r:"google.com",l:"de-DE",tz:"Europe/Berlin"}))))')
@@ -278,10 +282,11 @@ curl -s "$BASE/stats?site=demo&token=devtoken" | jq .
 
 ## Deploy (new Deno Deploy — `console.deno.com`)
 
-1. `deno task build-client`, commit `s.js`, then from this dir: `deno deploy`
-   (follow prompts) — or link the GitHub repo in `console.deno.com`, point at
-   `main.ts`, leave the build command empty (plain TS, no build step). **Do
-   not** use `deployctl` — that's Deploy Classic only (shut down 2026-07-20).
+1. `deno task build-client`, commit `src/s.js`, then from this dir:
+   `deno deploy` (follow prompts) — or link the GitHub repo in
+   `console.deno.com`, point at `src/main.ts`, leave the build command empty
+   (plain TS, no build step). **Do not** use `deployctl` — that's Deploy Classic
+   only (shut down 2026-07-20).
 2. **Databases → Provision Database → Deno KV**, then **Assign** to the app. KV
    is not auto-provisioned; without this `Deno.openKv()` fails.
 3. **Settings → Environment Variables**: `SITES`, `STATS_TOKEN` (long random
@@ -322,8 +327,8 @@ If you ran this collector before it was multi-tenant, existing keys are
 ## Privacy
 
 See [docs/privacy-template.md](docs/privacy-template.md) for a privacy note you
-can adapt for a site that uses this collector, and `docs/design-notes/` for the
-reasoning behind the schema and the bot detection.
+can adapt for a site that uses this collector, and `.claude/design-notes/` for
+the reasoning behind the schema and the bot detection.
 
 ## License
 

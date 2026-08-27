@@ -1,19 +1,31 @@
 {
   "tasks": {
-    "dev": "STATS_TOKEN=${STATS_TOKEN:-devtoken} SITES=${SITES:-demo:localhost:8000} deno run -A --watch main.ts",
-    "start": "deno run -A main.ts",
-    // --allow-env is the only permission the suite needs (the tests set
-    // STATS_TOKEN/SITES; the handler reads them). KV/cron come from `unstable`
-    // below, so no --unstable-kv flag. Bare `deno test` fails without this task.
-    "test": "deno test --allow-env main_test.ts sites_test.ts",
-    // Builds the browser beacon to ./s.js. Flat next to main.ts on purpose:
-    // Deno Deploy bundles sibling new-URL files but skips subdirectories.
-    "build-client": "deno bundle --platform browser --minify --format iife client/beacon.ts -o s.js",
+    // Fixed dev config, not `${STATS_TOKEN:-devtoken}`: deno_task_shell has no
+    // default-value expansion, so that form is passed through literally and
+    // loadSites throws on the site id `${SITES`. To run with your own env, use
+    // `deno task start` (or `mise run dev`, which is a real shell).
+    // :8123, not :8000 — 8000 is the default half the JS dev servers on a
+    // machine already claim, and the collector's only symptom is AddrInUse.
+    "dev": "PORT=8123 STATS_TOKEN=devtoken SITES=demo:localhost:8123 deno run -A --watch src/main.ts",
+    "start": "deno run -A src/main.ts",
+    // --allow-env: the tests set STATS_TOKEN/SITES and the handler reads them.
+    // --allow-net/--allow-read are for e2e_test.ts alone (it boots a real
+    // listener and the handler reads the sibling assets off disk). KV/cron come
+    // from `unstable` below, so no --unstable-kv flag. Bare `deno test` fails
+    // without this task.
+    "test": "deno test --allow-env --allow-net --allow-read src/main_test.ts src/sites_test.ts src/e2e_test.ts",
+    // Real handler + in-memory KV pre-seeded with 30 days of fake traffic, for
+    // dashboard screenshots and manual UI work. Never touches local/real KV.
+    "demo": "deno run -A scripts/demo-server.ts",
+    // Builds the browser beacon to src/s.js. Flat next to src/main.ts on
+    // purpose: Deno Deploy bundles sibling new-URL files but skips
+    // subdirectories — that is also why there is no src/vendor/.
+    "build-client": "deno bundle --platform browser --minify --format iife src/client/beacon.ts -o src/s.js",
     // The beacon is loaded by every visitor on every page — a size regression is
     // a real cost, so CI fails past 4KB rather than letting it drift.
-    "check-size": "deno run --allow-read scripts/check-size.ts s.js 4096",
-    "migrate": "deno run -A migrate.ts",
-    "admin": "deno run -A admin.ts"
+    "check-size": "deno run --allow-read scripts/check-size.ts src/s.js 4096",
+    "migrate": "deno run -A src/migrate.ts",
+    "admin": "deno run -A src/admin.ts"
   },
   "imports": {
     "isbot": "npm:isbot@5",
@@ -36,8 +48,24 @@
   // anyway): deno's HTML formatter explodes the hand-compacted <style> block to
   // one property per line, a several-hundred-line diff that makes the file
   // harder to read for no gain.
+  // website/ is the Docusaurus docs site: a Node/React project with its own
+  // toolchain and prettier defaults (single quotes, no trailing markdown
+  // reflow). Deno's fmt/lint would fight it and CI would fail on both sides.
   "fmt": {
-    "exclude": ["uPlot.iife.min.js", "uPlot.min.css", "s.js", "dashboard.html"]
+    "exclude": [
+      "src/uPlot.iife.min.js",
+      "src/uPlot.min.css",
+      "src/s.js",
+      "src/dashboard.html",
+      "website/"
+    ]
   },
-  "lint": { "exclude": ["uPlot.iife.min.js", "uPlot.min.css", "s.js"] }
+  "lint": {
+    "exclude": [
+      "src/uPlot.iife.min.js",
+      "src/uPlot.min.css",
+      "src/s.js",
+      "website/"
+    ]
+  }
 }

@@ -491,5 +491,8 @@ if (import.meta.main) {
   // of listing every key, so cost is O(days pruned), not O(all rows).
   Deno.cron("prune old analytics", "0 3 * * *", () => prune(kv, sites.keys()));
 
-  Deno.serve(createHandler(kv, sites));
+  // PORT is for local dev only (another project already owning :8000 shouldn't
+  // block this one). Deploy injects its own port and ignores this.
+  const port = Number(Deno.env.get("PORT")) || undefined;
+  Deno.serve({ port }, createHandler(kv, sites));
 }

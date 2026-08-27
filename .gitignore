@@ -16,6 +16,7 @@ kv.sqlite3*
 .env
 .env.*
 !.env.example
+.*/
 
 # Local scratch server (hardcodes absolute paths)
 _smoke.ts
