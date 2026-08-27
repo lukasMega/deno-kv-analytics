@@ -9,7 +9,8 @@ Cookieless, multi-tenant pageview collector on Deno KV, deployed to the **new**
 Deno Deploy (`console.deno.com`, not `deployctl`/Deploy Classic). No cookies, no
 IP, no fingerprint → no consent banner. `README.md` documents the data model,
 tenancy and privacy reasoning in depth and is current; `.claude/design-notes/`
-holds the older plans behind the schema and the bot detection.
+holds the older plans behind the schema and the bot detection (local only —
+`.claude/` is gitignored, so it is absent from a fresh clone).
 
 ## Commands
 

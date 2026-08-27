@@ -16,7 +16,13 @@ kv.sqlite3*
 .env
 .env.*
 !.env.example
+
+# Every other dot-directory is local tooling (.claude/, .codex/, …) and is not
+# part of the published repo. `.github` must be re-included explicitly or the
+# workflows silently never reach GitHub — git cannot re-include a file whose
+# parent directory is excluded, so this negation has to name the directory.
 .*/
+!.github
 
 # Local scratch server (hardcodes absolute paths)
 _smoke.ts

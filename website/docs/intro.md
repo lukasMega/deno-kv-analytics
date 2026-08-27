@@ -25,6 +25,9 @@ Add one tag to a page and you are collecting:
 On a mapped custom domain, `data-site` is not needed — the collector resolves
 the site from the request Host.
 
+**New here?** [Getting started](./deploy.md) walks the whole setup: create the
+app, provision Deno KV, set env vars, map a domain.
+
 ## Local run
 
 ```bash

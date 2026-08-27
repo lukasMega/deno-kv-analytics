@@ -1,5 +1,5 @@
 ---
-sidebar_position: 2
+sidebar_position: 3
 title: Configuration
 description: Environment variables, site allowlist, Host to site resolution, and deploying to the new Deno Deploy.
 ---

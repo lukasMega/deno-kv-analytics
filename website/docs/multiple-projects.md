@@ -1,5 +1,5 @@
 ---
-sidebar_position: 3
+sidebar_position: 4
 title: Several projects
 description: Tracking a fleet of small sites — GitHub Pages projects on a shared host, one site id each, and the write budget they share.
 ---

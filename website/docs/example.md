@@ -1,5 +1,5 @@
 ---
-sidebar_position: 5
+sidebar_position: 6
 title: Example dashboard
 description: Screenshot of the dashboard over 30 days of seeded demo traffic.
 ---

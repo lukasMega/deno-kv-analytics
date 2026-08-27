@@ -1,5 +1,5 @@
 ---
-sidebar_position: 6
+sidebar_position: 7
 title: Privacy & Analytics
 slug: /privacy
 description: What this site measures — cookieless, first-party, no personal data sold or shared.
@@ -10,7 +10,7 @@ description: What this site measures — cookieless, first-party, no personal da
 This page is live proof of the collector: **this docs site runs it**, reporting
 as its own site id. It is also the template to adapt for any site that uses the
 collector — the canonical copy lives in
-[`docs/privacy-template.md`](https://github.com/your-org/deno-kv-analytics/blob/main/docs/privacy-template.md)
+[`docs/privacy-template.md`](https://github.com/lukasMega/deno-kv-analytics/blob/main/docs/privacy-template.md)
 in the repo. It is written for visitors, not for developers: it claims only what
 the code actually does, which is what lets a site run it with no consent banner.
 If you extend the collector, re-read this and keep the two in step.

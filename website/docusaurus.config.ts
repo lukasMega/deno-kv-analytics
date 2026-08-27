@@ -13,7 +13,7 @@ const REPO = 'deno-kv-analytics';
 // the beacon posts to its own origin, so this single value wires up analytics
 // end to end. Until it points at the real *.deno.net host (or custom domain),
 // the published site's beacon tag 404s and no counters move.
-const COLLECTOR = 'https://stats.example.com';
+const COLLECTOR = 'https://YOUR-NAME.deno.net';
 
 const config: Config = {
   title: 'deno-kv-analytics',

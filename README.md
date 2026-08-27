@@ -15,29 +15,11 @@ Add one tag to a page and you are collecting:
 <script defer src="https://stats.example.com/s.js" data-site="acme"></script>
 ```
 
-## Files
+📖 **[Full documentation](https://lukasmega.github.io/deno-kv-analytics/)** ·
+[Getting started](https://lukasmega.github.io/deno-kv-analytics/deploy) ·
+[Privacy](https://lukasmega.github.io/deno-kv-analytics/privacy)
 
-All application code is under `src/`; `scripts/` is build tooling that never
-ships.
-
-| file                      | what                                                                                             |
-| ------------------------- | ------------------------------------------------------------------------------------------------ |
-| `src/main.ts`             | collector: `/e`, `/stats`, `/sites`, `/s.js`, `/dashboard`, `/help` — also the Deploy entrypoint |
-| `src/sites.ts`            | site allowlist, Host→site resolution, per-site tokens                                            |
-| `src/client/beacon.ts`    | browser beacon → built to `src/s.js`, served at `/s.js`                                          |
-| `src/migrate.ts`          | one-shot rekey of pre-multi-site data                                                            |
-| `src/admin.ts`            | operator CLI: list / usage / delete a site                                                       |
-| `src/dashboard.html`      | UI served at `/dashboard` (markup only)                                                          |
-| `src/help.html`           | guided setup at `/help` — every step has a live check                                            |
-| `src/dashboard.css`       | styles shared by both pages                                                                      |
-| `src/da-common.js`        | shared token/site controls + `/stats` fetch                                                      |
-| `src/dashboard.js`        | dashboard logic; `src/dash-charts.js` holds the trend chart + heatmap                            |
-| `src/help.js`             | the setup checks and the test-beacon tool                                                        |
-| `src/*_test.ts`           | round-trip tests over in-memory KV (`deno task test`)                                            |
-| `src/uPlot.*`             | vendored uPlot js+css (flat sibling of `src/main.ts`, **not** a `vendor/` dir — see below)       |
-| `deno.json` / `mise.toml` | tasks + `unstable: [kv, cron]` / the same tasks under `mise run`                                 |
-
-## Local run (real KV, SQLite-backed)
+## Quick start
 
 ```bash
 deno task build-client   # src/client/beacon.ts -> src/s.js
@@ -47,6 +29,38 @@ deno task dev            # http://localhost:8123  (STATS_TOKEN=devtoken, SITES=d
 Then open **http://localhost:8123/help** — the same code that deploys. Enter
 token `devtoken` and site `demo`, run the checks, send a beacon (or "Seed 30
 random"), then switch to **/dashboard** to read it back.
+
+## Deploy (new Deno Deploy — `console.deno.com`)
+
+1. `deno task build-client`, commit `src/s.js`, then `deno deploy` — or link the
+   GitHub repo in [`console.deno.com`](https://console.deno.com), point at
+   `src/main.ts`, leave the build command empty (plain TS, no build step). **Do
+   not** use `deployctl` — that's Deploy Classic only (shut down 2026-07-20).
+2. **Databases → Provision Database → Deno KV**, then **Assign** to the app. KV
+   is not auto-provisioned; without this `Deno.openKv()` fails.
+3. **Settings → Environment Variables**: `SITES`, `STATS_TOKEN` (long random
+   secret), and a `STATS_TOKEN_<ID>` per site you want to hand out separately.
+4. **Settings → Domains**: add `stats.<yourdomain>` + the shown DNS record, for
+   **each** site.
+
+Step-by-step version with links to the official Deno docs:
+**[Getting started](https://lukasmega.github.io/deno-kv-analytics/deploy)**.
+
+<details>
+<summary><b>⚠️ Deploy caveat — assets must be flat siblings of the entrypoint</b></summary>
+
+Bit this project once: asset files must live **flat** beside the entrypoint
+`src/main.ts` — not in a subdirectory — and be read with `Deno.readTextFile`.
+Deno Deploy bundles sibling new-URL files but skips subdirs, and ignores
+`with { type: "text" }` at runtime. That applies to `src/s.js`, the uPlot pair
+and every file the UI is built from (`dashboard.html`, `help.html`,
+`dashboard.css`, `dashboard.js`, `dash-charts.js`, `da-common.js`, `help.js`) —
+which is why the vendored uPlot sits flat in `src/` rather than in a `vendor/`
+folder. It is also why `deno.json` scopes its excludes to `fmt`/`lint` only: a
+top-level `exclude` is honored by the Deploy upload and silently drops those
+files (they 404).
+
+</details>
 
 ## Configuration
 
@@ -60,7 +74,14 @@ random"), then switch to **/dashboard** to read it back.
 Site ids match `^[a-z0-9][a-z0-9_-]{0,31}$`. A malformed or duplicate entry
 throws at boot rather than silently creating a site nobody writes to.
 
-### How a request is mapped to a site
+**Adding a site:** append `id:stats.theirdomain` to `SITES`, add their domain
+under Settings → Domains, hand them
+`<script defer src="https://stats.theirdomain/s.js"></script>` (no `data-site`
+needed once the Host is mapped), and optionally set `STATS_TOKEN_<ID>` so they
+can read their own stats without the admin token.
+
+<details>
+<summary><b>How a request is mapped to a site</b></summary>
 
 1. **The request Host**, if a site claims that domain. Preferred: the Host is
    not settable by page JS, so a page cannot claim to be a different tenant, and
@@ -75,7 +96,15 @@ misconfigured consumer should degrade to a no-op rather than to a broken image
 on every page. An open site param would also let anyone mint unbounded KV
 prefixes on the shared write budget, which is why the allowlist is not optional.
 
+</details>
+
 ## Endpoints
+
+`GET /e` (beacon → 1×1 gif) · `/stats` · `/sites` · `/dashboard` · `/help` ·
+`/s.js` · `/vendor/uPlot.*` · `/` → `ok`
+
+<details>
+<summary><b>Full endpoint reference</b></summary>
 
 - **`GET /s.js`** — the browser beacon (built from `src/client/beacon.ts`,
   ~2.8KB minified). Config comes off the script tag: `data-site` (optional on a
@@ -122,16 +151,7 @@ prefixes on the shared write budget, which is why the allowlist is not optional.
   served ungated — they hold no secret; the token is typed in and every request
   they make is authorized like any other `/stats` call.
 
-**Deploy caveat** (bit this project once): asset files must live **flat** beside
-the entrypoint `src/main.ts` — not in a subdirectory — and be read with
-`Deno.readTextFile`. Deno Deploy bundles sibling new-URL files but skips
-subdirs, and ignores `with { type: "text" }` at runtime. That applies to
-`src/s.js`, the uPlot pair and every file the UI is built from
-(`dashboard.html`, `help.html`, `dashboard.css`, `dashboard.js`,
-`dash-charts.js`, `da-common.js`, `help.js`) — which is why the vendored uPlot
-sits flat in `src/` rather than in a `vendor/` folder. It is also why
-`deno.json` scopes its excludes to `fmt`/`lint` only: a top-level `exclude` is
-honored by the Deploy upload and silently drops those files (they 404).
+</details>
 
 ## Data model (Deno KV)
 
@@ -140,11 +160,24 @@ honored by the Deploy upload and silently drops those files (they 404).
 **independently** (no co-occurrence → no cross-dim segmentation), with exactly
 one deliberate exception: `dowhour`.
 
-`site` is a **key segment, not a dim**: that gives per-site `kv.list` prefixes
-for read, prune, export and delete-a-site for free, and makes cross-site leakage
-a key-construction bug (loud, testable) rather than a filtering bug (silent).
-Reads filter on key length, because a site id may legitimately look like a date
-and would otherwise collide with the 4-segment legacy prefix.
+A pageview writes 12 dims: `pv`, `path`, `host`, `ref`, `ref_group`, `lang`,
+`tz`, `browser`, `os`, `device`, `hour`, `dowhour`. Free tier ≈ 300K write
+units/mo ÷ 12 ≈ **~25K pageviews/mo**, shared across every site on the
+deployment.
+
+<details>
+<summary><b>Why <code>site</code> is a key segment, not a dim</b></summary>
+
+It gives per-site `kv.list` prefixes for read, prune, export and delete-a-site
+for free, and makes cross-site leakage a key-construction bug (loud, testable)
+rather than a filtering bug (silent). Reads filter on key length, because a site
+id may legitimately look like a date and would otherwise collide with the
+4-segment legacy prefix.
+
+</details>
+
+<details>
+<summary><b>Every dim a hit can write</b></summary>
 
 **Pageview** (`d.ev` absent) always writes 12 dims: `pv`, `path`, `host`, `ref`,
 `ref_group`, `lang`, `tz`, `browser`, `os`, `device`, `hour` (UTC hour,
@@ -160,7 +193,16 @@ Unknown fields (like `z`) are ignored. **Event** (`d.ev` set) writes only
 behavioral-probe verdicts (`ev=hi`, `ev=bot`), which the server routes to their
 own dims (below).
 
-**Bot traffic** never reaches the pageview path: a hit whose UA matches `isbot`
+`day`, `hour` and `dowhour` all come from **one** clock read per hit, so a
+request landing on the midnight boundary can't be filed under one day carrying
+the next day's hour.
+
+</details>
+
+<details>
+<summary><b>Bot traffic — counted, never dropped</b></summary>
+
+Bot traffic never reaches the pageview path: a hit whose UA matches `isbot`
 writes `bot["ua"]` (a running total) and `bot_kind[<match>]` (which isbot
 pattern fired, e.g. `googlebot`, `facebookexternalhit` — bounded cardinality,
 same 128-char clamp as every other dim) instead of `pv`, then returns the same
@@ -178,7 +220,12 @@ pageviews/visitors/sessions/bounce are bot-free either way, and toggling only
 re-renders the already-loaded payload (no refetch). The CSV export always
 includes the bot dims regardless of the checkbox.
 
-**Behavioral probe**: the client arms a one-shot listener set
+</details>
+
+<details>
+<summary><b>Behavioral probe (<code>hi</code> / <code>bot[synthetic]</code>)</b></summary>
+
+The client arms a one-shot listener set
 (`pointerdown`/`keydown`/`touchstart`/`wheel`/`mousemove`, all
 `{ passive: true, once: true }`) right after the pageview beacon fires. The
 first of those to land reports a verdict, which the server files under a
@@ -211,11 +258,10 @@ produces **trusted** events, so genuinely stealthy headless automation passes
 this probe. Catching that would need fingerprinting, which is out of scope by
 design.
 
-`day`, `hour` and `dowhour` all come from **one** clock read per hit, so a
-request landing on the midnight boundary can't be filed under one day carrying
-the next day's hour.
+</details>
 
-### `z` — why the payload carries a random field
+<details>
+<summary><b><code>z</code> — why the payload carries a random field</b></summary>
 
 The beacon is an `Image()` GET, and a browser collapses an image request whose
 URL exactly repeats an earlier one — verified in Chrome,
@@ -225,7 +271,10 @@ A→B→A→B SPA path loop, a second click on the same download link. `z` is 6 
 chars, sent inside the opaque payload rather than as a visible `?_=<ts>` param
 so the URL keeps its bland shape. The server ignores it; it is never stored.
 
-### `ref_group` — referrer bucketing
+</details>
+
+<details>
+<summary><b><code>ref_group</code> — referrer bucketing</b></summary>
 
 `ref_group` classifies the referrer host **server-side at ingest** into `search`
 / `social` / `internal` / `direct` / `referral`, so the grouping is consistent
@@ -235,7 +284,10 @@ reload inside the site), which keeps it out of the acquisition numbers. The
 client sends `r: ""` for direct traffic; that is normalized to `direct` (not
 stored as an empty key).
 
-### `dowhour` — the one pairwise dim
+</details>
+
+<details>
+<summary><b><code>dowhour</code> — the one pairwise dim</b></summary>
 
 `dowhour` stores `"<dow>-<hh>"` (dow `0`=Sun…`6`=Sat UTC, 168 possible values) —
 a **true day×hour joint counter**, which is what the dashboard heatmap renders.
@@ -252,7 +304,10 @@ no-consent-banner model, so it will not be built. The degenerate 1-hop version
 (pairwise `ref_group → landing page`) is just a grouped bar chart bent into
 ribbons and isn't worth its write cost either.
 
-### Write budget (shared by all sites)
+</details>
+
+<details>
+<summary><b>Write budget, in detail</b></summary>
 
 Free tier ≈ 300K write units/mo ÷ 12 base pageview dims ≈ **~25K pageviews/mo**
 for a pageview that sees no interaction. Most pageviews also arm the behavioral
@@ -267,6 +322,8 @@ dashboard. A top-level `Deno.cron` prunes days older than 400, per site (the
 single scan with that break would prune the first site and let every other one
 grow forever).
 
+</details>
+
 ## Operator CLI
 
 ```bash
@@ -278,7 +335,8 @@ deno task admin -- delete --site acme --yes    # irreversible: erase one tenancy
 `delete` exists because "please remove my data" should be a one-liner, not an
 improvisation — the site is a KV prefix.
 
-## curl smoke test
+<details>
+<summary><b>curl smoke test</b></summary>
 
 ```bash
 BASE=http://localhost:8123                 # or https://stats.<yourdomain>
@@ -293,33 +351,35 @@ curl -i "$BASE/e?s=demo&v=$V" \
 curl -s "$BASE/stats?site=demo&token=devtoken" | jq .
 ```
 
-## Deploy (new Deno Deploy — `console.deno.com`)
+</details>
 
-1. `deno task build-client`, commit `src/s.js`, then from this dir:
-   `deno deploy` (follow prompts) — or link the GitHub repo in
-   `console.deno.com`, point at `src/main.ts`, leave the build command empty
-   (plain TS, no build step). **Do not** use `deployctl` — that's Deploy Classic
-   only (shut down 2026-07-20).
-2. **Databases → Provision Database → Deno KV**, then **Assign** to the app. KV
-   is not auto-provisioned; without this `Deno.openKv()` fails.
-3. **Settings → Environment Variables**: `SITES`, `STATS_TOKEN` (long random
-   secret), and a `STATS_TOKEN_<ID>` per site you want to hand out separately.
-4. **Settings → Domains**: add `stats.<yourdomain>` + the shown DNS record, for
-   **each** site. One app can hold several custom domains — that is what makes
-   Host-based site resolution work, and it keeps every beacon first-party, which
-   is what keeps it off adblock filter lists.
+<details>
+<summary><b>Repository layout</b></summary>
 
-## Adding a site
+All application code is under `src/`; `scripts/` is build tooling that never
+ships.
 
-1. Append `id:stats.theirdomain` to `SITES`.
-2. Add their domain under Settings → Domains.
-3. Give them the tag:
-   `<script defer src="https://stats.theirdomain/s.js"></script>` (no
-   `data-site` needed once the Host is mapped).
-4. Optionally set `STATS_TOKEN_<ID>` so they can read their own stats without
-   the admin token.
+| file                      | what                                                                                             |
+| ------------------------- | ------------------------------------------------------------------------------------------------ |
+| `src/main.ts`             | collector: `/e`, `/stats`, `/sites`, `/s.js`, `/dashboard`, `/help` — also the Deploy entrypoint |
+| `src/sites.ts`            | site allowlist, Host→site resolution, per-site tokens                                            |
+| `src/client/beacon.ts`    | browser beacon → built to `src/s.js`, served at `/s.js`                                          |
+| `src/migrate.ts`          | one-shot rekey of pre-multi-site data                                                            |
+| `src/admin.ts`            | operator CLI: list / usage / delete a site                                                       |
+| `src/dashboard.html`      | UI served at `/dashboard` (markup only)                                                          |
+| `src/help.html`           | guided setup at `/help` — every step has a live check                                            |
+| `src/dashboard.css`       | styles shared by both pages                                                                      |
+| `src/da-common.js`        | shared token/site controls + `/stats` fetch                                                      |
+| `src/dashboard.js`        | dashboard logic; `src/dash-charts.js` holds the trend chart + heatmap                            |
+| `src/help.js`             | the setup checks and the test-beacon tool                                                        |
+| `src/*_test.ts`           | round-trip tests over in-memory KV (`deno task test`)                                            |
+| `src/uPlot.*`             | vendored uPlot js+css (flat sibling of `src/main.ts`, **not** a `vendor/` dir)                   |
+| `deno.json` / `mise.toml` | tasks + `unstable: [kv, cron]` / the same tasks under `mise run`                                 |
 
-## Migrating from the single-site layout
+</details>
+
+<details id="migrating-from-the-single-site-layout">
+<summary><b>Migrating from the single-site layout</b></summary>
 
 If you ran this collector before it was multi-tenant, existing keys are
 `["c", day, dim, value]` and must become `["c", site, day, dim, value]`.
@@ -337,11 +397,12 @@ If you ran this collector before it was multi-tenant, existing keys are
 5. Verify the totals match, re-run `--dry-run` until it reports 0, then unset
    `LEGACY_SITE` and delete that branch in `readStats`.
 
+</details>
+
 ## Privacy
 
 See [docs/privacy-template.md](docs/privacy-template.md) for a privacy note you
-can adapt for a site that uses this collector, and `.claude/design-notes/` for
-the reasoning behind the schema and the bot detection.
+can adapt for a site that uses this collector.
 
 ## License
 
