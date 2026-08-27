@@ -27,6 +27,10 @@ kv.sqlite3*
 # Local scratch server (hardcodes absolute paths)
 _smoke.ts
 
+# Operator runbook for the private production instance — names the deployment
+# host, org and app. Local only; the published repo must not advertise them.
+DEPLOY.md
+
 # NOTE: s.js is build output but IS committed on purpose — Deno Deploy runs the
 # repo with no build step, so the beacon must be in the tree. Rebuild with
 # `deno task build-client` and commit the result.

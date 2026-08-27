@@ -9,11 +9,23 @@ import type * as Preset from '@docusaurus/preset-classic';
 const ORG = 'lukasMega';
 const REPO = 'deno-kv-analytics';
 
-// TODO(placeholder): origin of the deployed collector. It serves `/s.js`, and
-// the beacon posts to its own origin, so this single value wires up analytics
-// end to end. Until it points at the real *.deno.net host (or custom domain),
-// the published site's beacon tag 404s and no counters move.
-const COLLECTOR = 'https://YOUR-NAME.deno.net';
+// Origin of the deployed collector, e.g. `https://stats.example.com`. Read from
+// the environment and deliberately NOT hardcoded — not even split across
+// expressions, which would still reconstruct the host for anyone reading the
+// file. Unset (the default, and every fork) omits the beacon entirely, so the
+// site builds and works with no analytics rather than emitting a tag that 404s.
+//
+// This only keeps the host out of *git*. Whatever value is set at build time is
+// baked into the published HTML as a `<script src>` that every visitor can read
+// — a browser beacon URL cannot be secret. Point a custom domain at the
+// collector if the *.deno.net host itself should stay unadvertised.
+const COLLECTOR = process.env.COLLECTOR_ORIGIN;
+
+// Must be an id in the collector's `SITES` env var — an unlisted id resolves to
+// null, and the beacon then returns the same gif while writing nothing, so a
+// typo here is silent. Verify against `GET /sites` on the collector, not against
+// this file.
+const SITE_ID = process.env.COLLECTOR_SITE_ID ?? 'docs';
 
 const config: Config = {
   title: 'deno-kv-analytics',
@@ -51,16 +63,18 @@ const config: Config = {
   // *.github.io is a shared host that no site can claim, so resolveSite falls
   // through to the `?s=` branch, which only accepts an allowlisted id.
   // localhost is skipped by the beacon, so `npm start` writes nothing.
-  headTags: [
-    {
-      tagName: 'script',
-      attributes: {
-        defer: 'true',
-        src: `${COLLECTOR}/s.js`,
-        'data-site': 'docs',
-      },
-    },
-  ],
+  headTags: COLLECTOR
+    ? [
+        {
+          tagName: 'script',
+          attributes: {
+            defer: 'true',
+            src: `${COLLECTOR}/s.js`,
+            'data-site': SITE_ID,
+          },
+        },
+      ]
+    : [],
 
   presets: [
     [
