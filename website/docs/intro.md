@@ -32,9 +32,9 @@ deno task build-client   # src/client/beacon.ts -> src/s.js
 deno task dev            # http://localhost:8123  (STATS_TOKEN=devtoken, SITES=demo:localhost:8123)
 ```
 
-Then open **http://localhost:8123/dashboard** — the same code that deploys. Pick
-the site (`demo`), send a beacon (or "Seed 30 random"), then Load with token
-`devtoken`.
+Then open **http://localhost:8123/help** — the same code that deploys. Enter
+token `devtoken` and site `demo`, run the checks, send a beacon (or "Seed 30
+random"), then switch to **/dashboard** to read it back.
 
 To browse a populated UI without any real data, `deno task demo` boots the real
 handler over an in-memory KV seeded with 30 days of deterministic fake traffic.

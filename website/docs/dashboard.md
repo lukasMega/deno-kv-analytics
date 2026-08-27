@@ -22,8 +22,13 @@ description: Endpoints, auth model and what the dashboard renders.
   today (UTC). Range: `&from=…&to=…` (inclusive) merges into totals. Add
   `&series=1` for a per-day series (`[[day, pv, uv, sessions, bot], …]`).
   **401** on a bad token _or_ an unresolved site.
-- **`GET /sites`** — `[{id, host}]`, **admin token only**.
-- **`GET /dashboard`** — the UI. `GET /` — `ok`.
+- **`GET /sites`** — `[{id, host}]`, **admin token only**. Powers the
+  dashboard's site picker; a per-site token gets 401 there and you type the id.
+- **`GET /dashboard`** — the analytics UI. **`GET /help`** — guided setup.
+  Both are served ungated: they hold no secret, the token is typed into the page,
+  and a new operator has to reach `/help` *before* they have a working token.
+  Their assets (`/dashboard.css`, `/dashboard.js`, `/dash-charts.js`,
+  `/da-common.js`, `/help.js`) are served the same way. `GET /` — `ok`.
 
 ## Auth
 
@@ -49,6 +54,24 @@ toggling only re-renders the already-loaded payload. The CSV export always
 includes the bot dims.
 
 See [Example dashboard](./example.md) for a screenshot of the whole thing.
+
+## `/help`
+
+Setup, with a **Check** button on every step rather than a description of what
+should happen:
+
+1. collector reachable — `GET /` returns `ok`;
+2. site id + token — one `/stats` probe, which 401s both for a wrong token and
+   for a site that token does not own;
+3. script tag installed — the snippet is rendered prefilled with your site id and
+   this origin, and the check looks for pageviews in the last two days;
+4. real traffic — the `host` dim contains the origin you pasted the tag on;
+5. a second project — the other site id is live and readable.
+
+Every check uses an endpoint that already exists, so nothing here can drift from
+what the server actually does. The page also hosts the test-beacon and _Seed 30
+random_ tools, which is what makes steps 3–4 checkable before real traffic
+arrives.
 
 ## The `dowhour` exception
 

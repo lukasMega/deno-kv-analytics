@@ -22,8 +22,11 @@ Below: `Last 30 days` over that seeded data.
 
 What is on screen, top to bottom:
 
-- **KPI tiles** — pageviews, visitors, sessions, bounce rate, human interaction,
-  each with its delta against the prior period of equal length.
+- **KPI tiles** — pageviews, visitors, sessions, views/visit, bounce rate,
+  engagement rate, human interaction, each with its delta against the prior
+  period of equal length. The deltas read `—` in the screenshot because the
+  seeded data starts exactly 30 days back: there is no prior period to compare
+  against.
 - **Trend chart** (uPlot, vendored — no CDN) — pageviews / visitors / sessions,
   plus a dashed `bots` line when _show bot traffic_ is on.
 - **Day × hour heatmap** — rendered from the `dowhour` joint counter, the one
