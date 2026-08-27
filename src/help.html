@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>docs-analytics · setup</title>
+<link rel="stylesheet" href="/dashboard.css">
+</head>
+<body>
+  <div class="head">
+    <h1>setup</h1>
+    <span class="links"><a href="/dashboard">dashboard</a></span>
+  </div>
+
+  <section>
+    <div class="toolbar">
+      <input id="token" value="devtoken" placeholder="token" autocomplete="off">
+      <input id="site" list="siteList" placeholder="site id" autocomplete="off">
+      <datalist id="siteList"></datalist>
+    </div>
+    <p class="hint">Shared with the dashboard. Every check below uses these two.</p>
+
+    <div class="step" id="step1">
+      <h3><span class="n">1</span>Collector is reachable</h3>
+      <p>This page is served by the collector, so this should already pass.</p>
+      <div class="actions">
+        <button class="check" data-step="1">Check</button>
+        <span class="verdict" id="v1"></span>
+      </div>
+    </div>
+
+    <div class="step" id="step2">
+      <h3><span class="n">2</span>Site id and token are configured</h3>
+      <p>One site id per project. Set both on the collector, then redeploy (editing env vars on Deno Deploy makes a new revision by itself):</p>
+      <pre id="envSnippet"></pre>
+      <div class="actions">
+        <button class="copy" data-copy="envSnippet">Copy</button>
+        <button class="check" data-step="2">Check</button>
+        <span class="verdict" id="v2"></span>
+      </div>
+    </div>
+
+    <div class="step" id="step3">
+      <h3><span class="n">3</span>Script tag is on your page</h3>
+      <p>Paste into your site's <code>&lt;head&gt;</code>. On a shared host like <code>user.github.io</code> the <code>data-site</code> attribute is what separates your projects; on a custom domain listed in <code>SITES</code> it is optional.</p>
+      <pre id="tagSnippet"></pre>
+      <div class="actions">
+        <button class="copy" data-copy="tagSnippet">Copy</button>
+        <button class="check" data-step="3">Check</button>
+        <span class="verdict" id="v3"></span>
+      </div>
+    </div>
+
+    <div class="step" id="step4">
+      <h3><span class="n">4</span>Real pageviews from your domain</h3>
+      <p>Visit your page in a normal browser, then check that its origin shows up. Local hostnames are skipped by the beacon unless the tag carries <code>data-dev="1"</code>.</p>
+      <div class="actions">
+        <input id="origin" placeholder="https://user.github.io" autocomplete="off" style="flex:1 1 220px;width:auto;padding:5px 8px;font-size:12px">
+        <button class="check" data-step="4">Check</button>
+        <span class="verdict" id="v4"></span>
+      </div>
+    </div>
+
+    <div class="step" id="step5">
+      <h3><span class="n">5</span>Add a second project</h3>
+      <p>Extend <code>SITES</code>, add its token, and paste the tag with the new id. Enter the second id to confirm it is live and readable.</p>
+      <div class="actions">
+        <input id="site2" placeholder="second site id" autocomplete="off" style="flex:1 1 160px;width:auto;padding:5px 8px;font-size:12px">
+        <button class="check" data-step="5">Check</button>
+        <span class="verdict" id="v5"></span>
+      </div>
+    </div>
+  </section>
+
+  <section style="margin-top:20px">
+    <h2>No traffic yet? Send a test hit</h2>
+    <details><summary>open</summary>
+      <div class="row">
+        <div><label>path (p)</label><input id="p" value="/docs/intro"></div>
+        <div><label>referrer host (r)</label><input id="r" value="google.com"></div>
+      </div>
+      <div class="row">
+        <div><label>language (l)</label><input id="l" value="en-US"></div>
+        <div><label>timezone (tz)</label><input id="tz" value="Europe/Berlin"></div>
+      </div>
+      <div class="row">
+        <div><label>languages (ls)</label><input id="ls" value="en-US,en"></div>
+        <div><label>host (h)</label><input id="h" value="docs.example.com"></div>
+      </div>
+      <button id="fire">Send beacon</button>
+      <button id="seed" class="alt">Seed 30 random</button>
+      <div class="msg" id="fireMsg"></div>
+      <p class="hint">Gated by the stats token above. browser/os come from this browser's own User-Agent — the server ignores any client-sent UA. To test other UAs use curl (see README).</p>
+    </details>
+  </section>
+
+<script type="module" src="/help.js"></script>
+</body>
+</html>

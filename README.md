@@ -20,17 +20,22 @@ Add one tag to a page and you are collecting:
 All application code is under `src/`; `scripts/` is build tooling that never
 ships.
 
-| file                      | what                                                                                       |
-| ------------------------- | ------------------------------------------------------------------------------------------ |
-| `src/main.ts`             | collector: `/e`, `/stats`, `/sites`, `/s.js`, `/dashboard` — also the Deploy entrypoint    |
-| `src/sites.ts`            | site allowlist, Host→site resolution, per-site tokens                                      |
-| `src/client/beacon.ts`    | browser beacon → built to `src/s.js`, served at `/s.js`                                    |
-| `src/migrate.ts`          | one-shot rekey of pre-multi-site data                                                      |
-| `src/admin.ts`            | operator CLI: list / usage / delete a site                                                 |
-| `src/dashboard.html`      | UI served at `/dashboard`                                                                  |
-| `src/*_test.ts`           | round-trip tests over in-memory KV (`deno task test`)                                      |
-| `src/uPlot.*`             | vendored uPlot js+css (flat sibling of `src/main.ts`, **not** a `vendor/` dir — see below) |
-| `deno.json` / `mise.toml` | tasks + `unstable: [kv, cron]` / the same tasks under `mise run`                           |
+| file                      | what                                                                                             |
+| ------------------------- | ------------------------------------------------------------------------------------------------ |
+| `src/main.ts`             | collector: `/e`, `/stats`, `/sites`, `/s.js`, `/dashboard`, `/help` — also the Deploy entrypoint |
+| `src/sites.ts`            | site allowlist, Host→site resolution, per-site tokens                                            |
+| `src/client/beacon.ts`    | browser beacon → built to `src/s.js`, served at `/s.js`                                          |
+| `src/migrate.ts`          | one-shot rekey of pre-multi-site data                                                            |
+| `src/admin.ts`            | operator CLI: list / usage / delete a site                                                       |
+| `src/dashboard.html`      | UI served at `/dashboard` (markup only)                                                          |
+| `src/help.html`           | guided setup at `/help` — every step has a live check                                            |
+| `src/dashboard.css`       | styles shared by both pages                                                                      |
+| `src/da-common.js`        | shared token/site controls + `/stats` fetch                                                      |
+| `src/dashboard.js`        | dashboard logic; `src/dash-charts.js` holds the trend chart + heatmap                            |
+| `src/help.js`             | the setup checks and the test-beacon tool                                                        |
+| `src/*_test.ts`           | round-trip tests over in-memory KV (`deno task test`)                                            |
+| `src/uPlot.*`             | vendored uPlot js+css (flat sibling of `src/main.ts`, **not** a `vendor/` dir — see below)       |
+| `deno.json` / `mise.toml` | tasks + `unstable: [kv, cron]` / the same tasks under `mise run`                                 |
 
 ## Local run (real KV, SQLite-backed)
 
@@ -39,9 +44,9 @@ deno task build-client   # src/client/beacon.ts -> src/s.js
 deno task dev            # http://localhost:8123  (STATS_TOKEN=devtoken, SITES=demo:localhost:8123)
 ```
 
-Then open **http://localhost:8123/dashboard** — the same code that deploys. Pick
-the site (`demo`), send a beacon (or "Seed 30 random"), then Load with token
-`devtoken`.
+Then open **http://localhost:8123/help** — the same code that deploys. Enter
+token `devtoken` and site `demo`, run the checks, send a beacon (or "Seed 30
+random"), then switch to **/dashboard** to read it back.
 
 ## Configuration
 
@@ -110,13 +115,21 @@ prefixes on the shared write budget, which is why the allowlist is not optional.
   The filter box searches every value, capped or not, and hides dims with no
   match. `GET /vendor/uPlot.iife.min.js` + `/vendor/uPlot.min.css` serve the
   **vendored** uPlot (no CDN dependency). `GET /` — `ok`.
+- **`GET /help`** — guided setup: one site id per project, the script tag to
+  paste, and a check per step that probes `/`, `/stats` and `/sites` live rather
+  than describing what should happen. Also hosts the test-beacon/seed tool, so
+  the later steps are checkable before real traffic exists. Both pages are
+  served ungated — they hold no secret; the token is typed in and every request
+  they make is authorized like any other `/stats` call.
 
 **Deploy caveat** (bit this project once): asset files must live **flat** beside
 the entrypoint `src/main.ts` — not in a subdirectory — and be read with
 `Deno.readTextFile`. Deno Deploy bundles sibling new-URL files but skips
 subdirs, and ignores `with { type: "text" }` at runtime. That applies to
-`src/dashboard.html`, `src/s.js` and the uPlot pair — which is why the vendored
-uPlot sits flat in `src/` rather than in a `vendor/` folder. It is also why
+`src/s.js`, the uPlot pair and every file the UI is built from
+(`dashboard.html`, `help.html`, `dashboard.css`, `dashboard.js`,
+`dash-charts.js`, `da-common.js`, `help.js`) — which is why the vendored uPlot
+sits flat in `src/` rather than in a `vendor/` folder. It is also why
 `deno.json` scopes its excludes to `fmt`/`lint` only: a top-level `exclude` is
 honored by the Deploy upload and silently drops those files (they 404).
 

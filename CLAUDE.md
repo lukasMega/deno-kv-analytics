@@ -56,24 +56,36 @@ holds build tooling that never ships.
   the collector at `/s.js`. Edit the `.ts`; `s.js` is generated (and
   fmt/lint-excluded). The `client/` subdir is safe: it is build input, never
   read at runtime.
-- `src/dashboard.html` — single-file UI served at `/dashboard`, fetches `/stats`
-  and `/sites`, renders with vendored uPlot.
+- `src/dashboard.html` — markup for `/dashboard`; logic in `src/dashboard.js` (+
+  `src/dash-charts.js` for the uPlot trend chart and the day×hour heatmap),
+  styles in `src/dashboard.css`. Fetches `/stats` and `/sites`.
+- `src/help.html` / `src/help.js` — guided setup at `/help`. Each step checks
+  itself against `/`, `/stats` and `/sites` — no endpoint exists only for the
+  tutorial, so it cannot drift from the server. Also hosts the test-beacon/seed
+  tool that used to live in the dashboard.
+- `src/da-common.js` — the token/site controls and `statsFetch`, shared by both
+  pages. Its contract: the importing page has `#token` and `#site` inputs.
 - `src/admin.ts` / `src/migrate.ts` — CLI; both export their functions for
   tests.
 
-Routes: `GET /e` (beacon → 1×1 gif), `/stats`, `/sites`, `/dashboard`, `/s.js`,
-`/vendor/uPlot.*`, `/` → `ok`.
+Routes: `GET /e` (beacon → 1×1 gif), `/stats`, `/sites`, `/dashboard`, `/help`,
+`/s.js`, `/vendor/uPlot.*`, the `UI_ASSETS` table (`/dashboard.css`,
+`/dashboard.js`, `/dash-charts.js`, `/da-common.js`, `/help.js`), `/` → `ok`.
+Both HTML pages are served ungated: they carry no secret, the token is typed in,
+and a new operator must be able to reach `/help` before they have one.
 
 ## Invariants that break silently if violated
 
 **Deploy bundles only flat siblings of the entrypoint.** `dashboard.html`,
-`s.js`, `uPlot.iife.min.js`, `uPlot.min.css` must stay next to `main.ts` — now
-`src/main.ts` — and be read via `new URL("./x", import.meta.url)` +
-`Deno.readTextFile`. This is why there is no `src/vendor/` for the uPlot pair:
-subdirectories are not uploaded and `with { type: "text" }` is ignored at
-runtime. It is also why the Deploy entrypoint is `src/main.ts`. Same reason
-`deno.json` scopes excludes to `fmt`/`lint` only — a top-level `exclude` also
-drops the files from the Deploy upload and they 404.
+`help.html`, `dashboard.css`, `dashboard.js`, `dash-charts.js`, `da-common.js`,
+`help.js`, `s.js`, `uPlot.iife.min.js`, `uPlot.min.css` must stay next to
+`main.ts` — now `src/main.ts` — and be read via
+`new URL("./x", import.meta.url)` + `Deno.readTextFile`. This is why there is no
+`src/vendor/` for the uPlot pair: subdirectories are not uploaded and
+`with { type: "text" }` is ignored at runtime. It is also why the Deploy
+entrypoint is `src/main.ts`. Same reason `deno.json` scopes excludes to
+`fmt`/`lint` only — a top-level `exclude` also drops the files from the Deploy
+upload and they 404.
 
 **KV key = `["c", site, day, dim, value]`, exactly 5 segments**, value is a
 bigint via `kv.atomic().sum(key, 1n)`. Reads filter on `key.length` because a

@@ -40,8 +40,27 @@ const gif = () =>
 // a subdir, and it ignores `with { type: "text" }` imports at runtime — so keep
 // the uPlot assets flat in this dir, not under vendor/.
 const DASHBOARD = new URL("./dashboard.html", import.meta.url);
+const HELP = new URL("./help.html", import.meta.url);
 const UPLOT_JS = new URL("./uPlot.iife.min.js", import.meta.url);
 const UPLOT_CSS = new URL("./uPlot.min.css", import.meta.url);
+// UI assets shared by /dashboard and /help. Same flat-sibling rule as above; the
+// path a browser requests is the filename, so adding one here is the only step.
+const UI_ASSETS: Record<string, [URL, string]> = {
+  "/dashboard.css": [new URL("./dashboard.css", import.meta.url), "text/css"],
+  "/dashboard.js": [
+    new URL("./dashboard.js", import.meta.url),
+    "text/javascript",
+  ],
+  "/dash-charts.js": [
+    new URL("./dash-charts.js", import.meta.url),
+    "text/javascript",
+  ],
+  "/da-common.js": [
+    new URL("./da-common.js", import.meta.url),
+    "text/javascript",
+  ],
+  "/help.js": [new URL("./help.js", import.meta.url), "text/javascript"],
+};
 // The browser beacon, built from client/beacon.ts by `deno task build-client`.
 // Same flat-sibling rule as the uPlot assets — it is served to every visitor's
 // page, so a 404 here is the whole product silently not collecting.
@@ -435,9 +454,23 @@ export function createHandler(kv: Deno.Kv, sites: Map<string, Site>) {
       return await asset(UPLOT_CSS, "text/css");
     }
 
-    // --- manual test dashboard (dev tool; harmless on Deploy) ---
-    if (req.method === "GET" && url.pathname === "/dashboard") {
-      return new Response(await Deno.readTextFile(DASHBOARD), {
+    // --- dashboard / setup UI ---
+    // The HTML and its JS carry no secrets: the token is typed into the page and
+    // every request they make is authorized like any other /stats call. Serving
+    // them ungated is what lets a new operator reach /help before they have a
+    // working token — which is exactly who that page is for.
+    if (req.method === "GET" && UI_ASSETS[url.pathname]) {
+      const [file, type] = UI_ASSETS[url.pathname];
+      // Short cache, like /s.js: these change, and a stale copy is confusing
+      // rather than merely slow.
+      return await asset(file, type, 3600);
+    }
+    if (
+      req.method === "GET" &&
+      (url.pathname === "/dashboard" || url.pathname === "/help")
+    ) {
+      const file = url.pathname === "/help" ? HELP : DASHBOARD;
+      return new Response(await Deno.readTextFile(file), {
         headers: { "content-type": "text/html; charset=utf-8" },
       });
     }

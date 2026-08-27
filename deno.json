@@ -44,10 +44,11 @@
   // own build output — same reasoning, it is generated, not edited. Scoped to
   // fmt/lint only — a top-level "exclude" is also honored by the Deploy upload
   // and silently drops these files (they 404 when requested).
-  // dashboard.html is excluded from fmt (not lint — deno lint ignores .html
-  // anyway): deno's HTML formatter explodes the hand-compacted <style> block to
-  // one property per line, a several-hundred-line diff that makes the file
-  // harder to read for no gain.
+  // dashboard.html/help.html are excluded from fmt (not lint — deno lint ignores
+  // .html anyway): deno's HTML formatter re-indents the whole document inside
+  // <html> and reflows the attribute-heavy control markup, a whole-file diff on
+  // every edit that makes both harder to read for no gain. Their CSS and JS live
+  // in real .css/.js siblings, which fmt does own.
   // website/ is the Docusaurus docs site: a Node/React project with its own
   // toolchain and prettier defaults (single quotes, no trailing markdown
   // reflow). Deno's fmt/lint would fight it and CI would fail on both sides.
@@ -57,6 +58,11 @@
       "src/uPlot.min.css",
       "src/s.js",
       "src/dashboard.html",
+      "src/help.html",
+      // same reasoning one level down: deno's CSS formatter puts every property
+      // on its own line, turning 114 hand-grouped lines into ~500 and burying
+      // the comments that explain the color choices.
+      "src/dashboard.css",
       "website/"
     ]
   },

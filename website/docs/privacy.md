@@ -1,5 +1,5 @@
 ---
-sidebar_position: 5
+sidebar_position: 6
 title: Privacy & Analytics
 slug: /privacy
 description: What this site measures — cookieless, first-party, no personal data sold or shared.

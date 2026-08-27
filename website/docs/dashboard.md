@@ -1,5 +1,5 @@
 ---
-sidebar_position: 3
+sidebar_position: 4
 title: Dashboard & API
 description: Endpoints, auth model and what the dashboard renders.
 ---

@@ -43,6 +43,10 @@ prefixes on the shared write budget, which is why the allowlist is not optional.
 4. Optionally set `STATS_TOKEN_<ID>` so they can read their own stats without
    the admin token.
 
+For projects that share a host (several GitHub Pages repos under one
+`user.github.io`), see [Several projects](./multiple-projects.md). The `/help`
+page on your own collector walks the same steps and verifies each one.
+
 ## Deploy (new Deno Deploy — `console.deno.com`)
 
 1. `deno task build-client`, commit `src/s.js`, then `deno deploy` — or link the
@@ -63,7 +67,9 @@ prefixes on the shared write budget, which is why the allowlist is not optional.
 Asset files must live **flat** beside the entrypoint `src/main.ts` — not in a
 subdirectory — and be read with `Deno.readTextFile`. Deno Deploy bundles sibling
 `new URL` files but skips subdirectories, and ignores `with { type: "text" }` at
-runtime. That applies to `src/dashboard.html`, `src/s.js` and the uPlot pair.
+runtime. That applies to `src/s.js`, the uPlot pair, and every file the UI is
+built from: `dashboard.html`, `help.html`, `dashboard.css`, `dashboard.js`,
+`dash-charts.js`, `da-common.js`, `help.js`.
 
 It is also why `deno.json` scopes its excludes to `fmt`/`lint` only: a top-level
 `exclude` is honored by the Deploy upload and silently drops those files (they

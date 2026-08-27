@@ -53,6 +53,13 @@ Deno.test("e2e: beacon → KV → /stats, and every served asset resolves", asyn
         ["/s.js", "text/javascript"],
         ["/vendor/uPlot.iife.min.js", "text/javascript"],
         ["/vendor/uPlot.min.css", "text/css"],
+        // the dashboard/help UI is no longer one self-contained file, so each
+        // piece it pulls in needs the same flat-sibling guarantee
+        ["/dashboard.css", "text/css"],
+        ["/dashboard.js", "text/javascript"],
+        ["/dash-charts.js", "text/javascript"],
+        ["/da-common.js", "text/javascript"],
+        ["/help.js", "text/javascript"],
       ]
     ) {
       const res = await fetch(base + path);
@@ -64,6 +71,10 @@ Deno.test("e2e: beacon → KV → /stats, and every served asset resolves", asyn
     const dash = await fetch(base + "/dashboard");
     assertEquals(dash.status, 200);
     assertStringIncludes(await dash.text(), 'id="analytics"');
+
+    const help = await fetch(base + "/help");
+    assertEquals(help.status, 200);
+    assertStringIncludes(await help.text(), 'id="step1"');
 
     // a real browser hit: pageview + a download event
     const ua = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15) Chrome/126.0";
