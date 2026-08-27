@@ -141,12 +141,13 @@ const config: Config = {
           title: 'Docs',
           items: [
             {label: 'Introduction', to: '/'},
-            {label: 'Configuration', to: '/configuration'},
+            {label: 'Quickstart', to: '/quickstart'},
             {label: 'Getting started', to: '/deploy'},
+            {label: 'Configuration', to: '/configuration'},
             {label: 'Several projects', to: '/multiple-projects'},
             {label: 'Dashboard & API', to: '/dashboard'},
-            {label: 'Example', to: '/example'},
             {label: 'Privacy', to: '/privacy'},
+            {label: 'Design notes', to: '/design'},
           ],
         },
         {

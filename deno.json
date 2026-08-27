@@ -3,12 +3,19 @@
     // Fixed values: deno_task_shell has no `${VAR:-default}` expansion, it would
     // be passed through literally and loadSites would throw. Own env: use
     // `deno task start`. :8123 because :8000 is usually already taken.
-    "dev": "PORT=8123 STATS_TOKEN=devtoken SITES=demo:localhost:8123 deno run -A --watch src/main.ts",
+    // KV_PATH: a bare Deno.openKv() picks its file from the *calling script's*
+    // origin, so dev, admin and migrate each got a different local database and
+    // `admin list` reported nothing. Pinning one file makes them agree. Deploy
+    // never sets it and keeps the bare call, which binds the project database.
+    // Builds the beacon first: /s.js is generated, and a stale or missing one is
+    // a silent no-data bug rather than an error, so it is not worth leaving to
+    // the reader to remember.
+    "dev": "deno task build-client && PORT=8123 STATS_TOKEN=devtoken SITES=demo:localhost:8123 KV_PATH=local.db deno run -A --watch src/main.ts",
     "start": "deno run -A src/main.ts",
     // --allow-env: tests set STATS_TOKEN/SITES. --allow-net/--allow-read: for
     // e2e_test.ts alone (real listener + assets read off disk). Bare
     // `deno test` fails without these.
-    "test": "deno test --allow-env --allow-net --allow-read src/main_test.ts src/sites_test.ts src/e2e_test.ts",
+    "test": "deno test --allow-env --allow-net --allow-read src/main_test.ts src/sites_test.ts src/kv_test.ts src/e2e_test.ts",
     // Real handler + in-memory KV seeded with 30 days of fake traffic, for
     // screenshots and manual UI work. Never touches local/real KV.
     "demo": "deno run -A scripts/demo-server.ts",
@@ -18,8 +25,8 @@
     // Every visitor loads the beacon, so size regressions cost real bytes: CI
     // fails past 4KB rather than letting it drift.
     "check-size": "deno run --allow-read scripts/check-size.ts src/s.js 4096",
-    "migrate": "deno run -A src/migrate.ts",
-    "admin": "deno run -A src/admin.ts"
+    "migrate": "KV_PATH=local.db deno run -A src/migrate.ts",
+    "admin": "KV_PATH=local.db deno run -A src/admin.ts"
   },
   "imports": {
     "isbot": "npm:isbot@5",

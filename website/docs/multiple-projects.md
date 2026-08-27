@@ -1,5 +1,5 @@
 ---
-sidebar_position: 4
+sidebar_position: 5
 title: Several projects
 description: Tracking a fleet of small sites — GitHub Pages projects on a shared host, one site id each, and the write budget they share.
 ---
@@ -31,9 +31,8 @@ A bare id in `SITES` is selectable only through `?s=` / `data-site`; `id:host`
 also maps a custom domain, and on such a domain `data-site` is optional because
 the Host already answers the question.
 
-There is deliberately **no path-prefix routing** (`user.github.io/proj-a` → site
-`proj-a`). It would add a second input to site resolution that page JS can
-influence, to replace one attribute the operator sets once.
+There is deliberately no path-prefix routing
+([why](./design.md#non-goal-path-prefix-routing)).
 
 ## Adding one is an env edit, not a deploy
 
@@ -45,25 +44,23 @@ isolates.
 
 ## The write budget is shared, not per site
 
-A pageview writes 12 counters — one write unit each. The Deno KV free tier is
-roughly 300K write units/month, so the **whole deployment** carries about **25K
-pageviews/month**, split across every site on it. Eight projects at an even split
-is ~3K pageviews each.
+The **whole deployment** carries about 25K pageviews/month on the free tier,
+split across every site on it. Eight projects at an even split is ~3K pageviews
+each. Numbers and the reasoning: [Design notes](./design.md#write-budget).
 
 Two consequences worth knowing before you add the fifth project:
 
-- Adding a **dimension** is a budget change, not a cosmetic one — it costs a
-  write unit on every pageview of every site.
+- Adding a **dimension** costs a write unit on every pageview of **every** site.
 - One project going viral spends the shared budget. There is no per-site cap
   today; watch the pageview counts on the dashboard if that becomes a risk.
 
-Bot hits and custom events write their own, much smaller, set of counters and
-never write `pv`.
+`deno task admin -- size --db <uuid>` gives you the per-site split of what is
+actually stored.
 
 ## Reading them back
 
 `STATS_TOKEN` is the admin token: it reads any site and is the only token allowed
 on `/sites`, which is what fills the dashboard's site picker. A per-site
 `STATS_TOKEN_<ID>` reads exactly one site — hand it out and the holder cannot see
-any other project. The check is against the *resolved* site, never against the
+any other project. The check is against the _resolved_ site, never against the
 set of all tokens.

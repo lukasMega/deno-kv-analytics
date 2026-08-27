@@ -2,7 +2,8 @@
 // does, feed it through createHandler over an in-memory KV, then assert /stats.
 // Run: deno task test
 import { assertEquals } from "@std/assert";
-import { botKind, createHandler, eq, parseUA, refGroup } from "./main.ts";
+import { botKind, parseUA, refGroup } from "./classify.ts";
+import { createHandler, eq } from "./main.ts";
 import { loadSites } from "./sites.ts";
 
 Deno.env.set("STATS_TOKEN", "testtoken");

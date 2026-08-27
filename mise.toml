@@ -10,7 +10,12 @@ deno = "2"
 # env defaults can be overridden here — `deno task dev` hardcodes them because
 # deno_task_shell cannot expand `${VAR:-default}`.
 description = "Watch mode on :8123 (devtoken / demo:localhost:8123, all overridable)"
-run = "PORT=${PORT:-8123} STATS_TOKEN=${STATS_TOKEN:-devtoken} SITES=${SITES:-demo:localhost:${PORT:-8123}} deno run -A --watch src/main.ts"
+run = [
+  # /s.js is generated and a stale one is a silent no-data bug, so build it
+  # rather than relying on the reader to remember. Same as `deno task dev`.
+  "deno task build-client",
+  "PORT=${PORT:-8123} STATS_TOKEN=${STATS_TOKEN:-devtoken} SITES=${SITES:-demo:localhost:${PORT:-8123}} KV_PATH=${KV_PATH:-local.db} deno run -A --watch src/main.ts",
+]
 
 [tasks.start]
 run = "deno task start"

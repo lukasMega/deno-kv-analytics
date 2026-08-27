@@ -6,16 +6,22 @@ Guidance for Claude Code (claude.ai/code) in this repository.
 
 Cookieless, multi-tenant pageview collector on Deno KV, deployed to the **new**
 Deno Deploy (`console.deno.com`, not `deployctl`/Deploy Classic). No cookies, no
-IP, no fingerprint → no consent banner. `README.md` covers the data model,
-tenancy and privacy reasoning in depth and is current. `.claude/design-notes/`
-holds the older schema/bot-detection plans (gitignored, absent from a fresh
-clone).
+IP, no fingerprint → no consent banner.
+
+Docs have one home per topic and `README.md` is a landing page that links out —
+do not re-explain a mechanism there. The reasoning (schema, write budget, bot
+handling, behavioral probe, Deploy layout rules, repo layout) lives in
+`website/docs/design.md`; env vars in `configuration.md`; deploy steps in
+`deploy.md`; endpoints in `dashboard.md`. Adding the same fact to a second file
+is how these drifted before. `.claude/design-notes/` holds the older
+schema/bot-detection plans (gitignored, absent from a fresh clone).
 
 ## Commands
 
 ```bash
-deno task dev            # watch on :8123, STATS_TOKEN=devtoken, SITES=demo:localhost:8123
-deno task test           # main_test.ts sites_test.ts e2e_test.ts
+deno task dev            # build-client, then watch on :8123 (devtoken, demo:localhost:8123)
+deno task demo           # seeded in-memory UI, touches no KV on disk
+deno task test           # main_test.ts sites_test.ts kv_test.ts e2e_test.ts
 deno task build-client   # src/client/beacon.ts -> src/s.js (minified IIFE)
 deno task check-size     # fails if src/s.js > 4096 bytes
 deno fmt && deno lint
@@ -40,8 +46,9 @@ entirely; emitting `src="undefined/s.js"` is the failure this guards, and it
 Operator tooling (raw KV, not HTTP):
 
 ```bash
-deno task admin -- list | usage --site <id> | delete --site <id> --yes
-deno task migrate -- --site <id> [--dry-run]
+deno task admin -- list | size | usage --site <id> | delete --site <id> --yes
+deno task admin -- size --db <uuid>   # deployed DB; needs DENO_KV_ACCESS_TOKEN
+deno task migrate -- --site <id> [--db <uuid>] [--dry-run]
 ```
 
 ## Architecture
@@ -50,10 +57,13 @@ All application code lives in `src/`, including runtime assets — they must sta
 flat siblings of `src/main.ts` (see Deploy invariant). `scripts/` holds build
 tooling that never ships.
 
-- `src/main.ts` — pure helpers (`parseUA`, `botKind`, `refGroup`, `eq`,
-  `readStats`, `prune`) + `createHandler(kv, sites)`. `Deno.serve`/`Deno.cron`
-  run only under `import.meta.main` so tests can import the handler; on Deploy
-  that guard is true, so the cron still registers at module top level.
+- `src/main.ts` — routing, ingest and KV reads: `eq`, `readStats`, `prune` +
+  `createHandler(kv, sites)`. `Deno.serve`/`Deno.cron` run only under
+  `import.meta.main` so tests can import the handler; on Deploy that guard is
+  true, so the cron still registers at module top level.
+- `src/classify.ts` — request → dimension values: `parseUA`, `botKind`,
+  `refGroup`, `country`, `clamp` (the 128-char cap). Pure and separately
+  testable; owns the isbot dependency.
 - `src/sites.ts` — tenancy: `loadSites()` parses `SITES`, `resolveSite()` maps a
   request to a site id, `tokenFor()` maps an id to its env var.
 - `src/client/beacon.ts` — browser script, built to `src/s.js`, served at
@@ -70,6 +80,14 @@ tooling that never ships.
   pages. Contract: the importing page has `#token` and `#site` inputs.
 - `src/admin.ts` / `src/migrate.ts` — CLI; both export their functions for
   tests.
+- `src/kv.ts` — `openKv()`, the single answer to "which database". A bare
+  `Deno.openKv()` keys its local sqlite file to the _calling script's_ origin,
+  so main/admin/migrate each opened a different one and `admin list` came back
+  empty during dev. `KV_PATH` (set to `local.db` in the local tasks) pins one
+  file; `--db <uuid>` targets the deployed database; neither set keeps the bare
+  call, which is what Deploy needs. Also exports `taskArgs()`: both CLIs must
+  parse through it, because `deno task x -- …` forwards a literal `--` that
+  parseArgs reads as the end-of-flags terminator, silently dropping every flag.
 
 Routes: `GET /e` (beacon → 1×1 gif), `/stats`, `/sites`, `/dashboard`, `/help`,
 `/s.js`, `/vendor/uPlot.*`, the `UI_ASSETS` table (`/dashboard.css`,

@@ -12,6 +12,7 @@
 // then reads both layouts and sums them, so the dashboard stays correct while
 // this runs. Unset it once `--dry-run` reports 0 remaining legacy keys.
 import { parseArgs } from "@std/cli/parse-args";
+import { openKv, taskArgs } from "./kv.ts";
 
 const BATCH = 100;
 
@@ -53,14 +54,19 @@ export async function migrate(
 }
 
 if (import.meta.main) {
-  const args = parseArgs(Deno.args, { string: ["site"], boolean: ["dry-run"] });
+  const args = parseArgs(taskArgs(), {
+    string: ["site", "db"],
+    boolean: ["dry-run"],
+  });
   const site = args.site;
   if (!site) {
-    console.error("usage: deno task migrate -- --site <id> [--dry-run]");
+    console.error(
+      "usage: deno task migrate -- --site <id> [--db <uuid>] [--dry-run]",
+    );
     Deno.exit(2);
   }
 
-  const kv = await Deno.openKv();
+  const kv = await openKv(args.db);
   const n = await migrate(kv, site, {
     dryRun: args["dry-run"],
     onProgress: (n) => console.log(`… ${n} keys`),
