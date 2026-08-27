@@ -30,6 +30,13 @@ come from `unstable: ["kv","cron"]` in deno.json, so no `--unstable-*` flags.
 the Docusaurus site in `website/`, kept out of `beforeCommit` so the Deno CI job
 needs no Node toolchain.
 
+The docs site's beacon is configured by two build-time env vars,
+`COLLECTOR_ORIGIN` (scheme optional) and `COLLECTOR_SITE_ID`, supplied as
+**repo-level** Actions variables. Never hardcode the host — not even split
+across expressions, which still reconstructs it. Unset omits the beacon tag
+entirely; emitting `src="undefined/s.js"` is the failure this guards, and it
+404s on every page without failing the build.
+
 Operator tooling (raw KV, not HTTP):
 
 ```bash

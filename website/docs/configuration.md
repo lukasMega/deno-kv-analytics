@@ -12,6 +12,7 @@ description: Environment variables, site allowlist, Host to site resolution, and
 | `STATS_TOKEN`      | **admin** token: reads any site, the only token allowed on `/sites`      |
 | `STATS_TOKEN_<ID>` | per-site token (`my-site` → `STATS_TOKEN_MY_SITE`); reads only that site |
 | `LEGACY_SITE`      | migration bridge only — see below                                       |
+| `PORT`             | listen port for a self-hosted run; unset lets Deno pick (Deploy sets it) |
 
 Site ids match `^[a-z0-9][a-z0-9_-]{0,31}$`. A malformed or duplicate entry
 throws at boot rather than silently creating a site nobody writes to.

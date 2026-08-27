@@ -93,7 +93,7 @@ const config: Config = {
       {
         docs: {
           sidebarPath: './sidebars.ts',
-          // Docs at the site root: four pages don't need a landing page in
+          // Docs at the site root: seven pages don't need a landing page in
           // front of them.
           routeBasePath: '/',
           editUrl: `https://github.com/${ORG}/${REPO}/tree/main/website/`,
@@ -134,6 +134,8 @@ const config: Config = {
           items: [
             {label: 'Introduction', to: '/'},
             {label: 'Configuration', to: '/configuration'},
+            {label: 'Getting started', to: '/deploy'},
+            {label: 'Several projects', to: '/multiple-projects'},
             {label: 'Dashboard & API', to: '/dashboard'},
             {label: 'Example', to: '/example'},
             {label: 'Privacy', to: '/privacy'},

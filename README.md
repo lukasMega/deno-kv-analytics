@@ -70,6 +70,7 @@ files (they 404).
 | `STATS_TOKEN`      | **admin** token: reads any site, the only token allowed on `/sites`             |
 | `STATS_TOKEN_<ID>` | per-site token (`my-site` → `STATS_TOKEN_MY_SITE`); reads only that site        |
 | `LEGACY_SITE`      | migration bridge only — see [Migrating](#migrating-from-the-single-site-layout) |
+| `PORT`             | listen port for a self-hosted run; unset lets Deno pick (Deploy sets it)        |
 
 Site ids match `^[a-z0-9][a-z0-9_-]{0,31}$`. A malformed or duplicate entry
 throws at boot rather than silently creating a site nobody writes to.
@@ -350,6 +351,36 @@ curl -i "$BASE/e?s=demo&v=$V" \
 
 curl -s "$BASE/stats?site=demo&token=devtoken" | jq .
 ```
+
+</details>
+
+<details>
+<summary><b>Docs site (<code>website/</code>)</b></summary>
+
+Docusaurus, published to GitHub Pages by `.github/workflows/docs.yml`. The one
+Node corner of an otherwise Deno-only repo, which is why it stays out of
+`beforeCommit`.
+
+```bash
+mise run docs         # dev server on :3000
+mise run docs-build   # production build into website/build
+```
+
+The site dogfoods the collector, configured by two **build-time** env vars —
+repo-level GitHub Actions variables, not environment-scoped ones (the
+`github-pages` environment is only attached to the deploy job, so its variables
+are invisible to the build, and attaching it there would fail PR builds against
+its branch protection):
+
+| var                 | what                                                                         |
+| ------------------- | ---------------------------------------------------------------------------- |
+| `COLLECTOR_ORIGIN`  | origin serving `/s.js`; scheme optional. **Unset omits the beacon entirely** |
+| `COLLECTOR_SITE_ID` | site id to report as; must be listed in the collector's `SITES`              |
+
+Both are deliberately absent from this repo, so a fork builds a working site
+with no analytics rather than reporting into someone else's collector. Note the
+value is not a secret: whatever origin is set gets baked into the published HTML
+as a `<script src>` that every visitor can read.
 
 </details>
 
