@@ -10,7 +10,7 @@ End-to-end setup on the **new** Deno Deploy
 ([`console.deno.com`](https://console.deno.com)). Roughly ten minutes, most of
 it waiting on DNS.
 
-:::danger Not `deployctl`
+:::danger[Not `deployctl`]
 
 This project targets the new Deno Deploy. **Deploy Classic**
 ([docs](https://docs.deno.com/deploy/classic/)) and its `deployctl` CLI shut
@@ -56,7 +56,7 @@ deno deploy create --org <your-org> --app <your-app> \
   --runtime-mode dynamic --entrypoint src/main.ts
 ```
 
-:::warning Commit `src/s.js`
+:::warning[Commit `src/s.js`]
 
 The browser beacon is build output but **is** committed on purpose — Deploy runs
 the repo with no build step. After changing `src/client/beacon.ts`, run

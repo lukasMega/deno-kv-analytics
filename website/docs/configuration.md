@@ -62,7 +62,7 @@ page on your own collector walks the same steps and verifies each one.
    Host-based resolution work, and it keeps every beacon first-party, which is
    what keeps it off adblock filter lists.
 
-:::warning Deploy caveat
+:::warning[Deploy caveat]
 
 Asset files must live **flat** beside the entrypoint `src/main.ts` — not in a
 subdirectory — and be read with `Deno.readTextFile`. Deno Deploy bundles sibling

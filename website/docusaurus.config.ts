@@ -21,6 +21,10 @@ const config: Config = {
   favicon: 'img/favicon.ico',
 
   // Future flags, see https://docusaurus.io/docs/api/docusaurus-config#future
+  // future.v4 disables the MDX v1 compatibility options, which includes the
+  // legacy `:::warning Title` admonition form — it degrades to a literal
+  // paragraph with no build warning. Titles must use the Markdown Directive
+  // syntax `:::warning[Title]`.
   future: {
     v4: true, // Improve compatibility with the upcoming Docusaurus v4
   },
