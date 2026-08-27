@@ -28,6 +28,28 @@ the site from the request Host.
 **New here?** [Getting started](./deploy.md) walks the whole setup: create the
 app, provision Deno KV, set env vars, map a domain.
 
+## How it works
+
+```mermaid
+flowchart TD
+  V["Visitor's page<br/>#60;script src=/s.js#62;"]
+  B["Beacon<br/>client/beacon.ts"]
+  C["Collector<br/>src/main.ts"]
+  K[("Deno KV<br/>c · site · day · dim · value")]
+  D["Dashboard /dashboard"]
+
+  V -->|"loads /s.js"| B
+  B -->|"GET /e → 1×1 gif"| C
+  C -->|"bot UA → bot + bot_kind"| K
+  C -->|"else → 12 pageview dims"| K
+  K -->|"GET /stats + token"| D
+```
+
+No cookie, no IP, no fingerprint is ever read or stored. The collector derives
+browser and OS from the request `user-agent` server-side, increments one counter
+per dimension, and returns the same 1×1 gif either way — including for a site it
+cannot resolve, which writes nothing at all.
+
 ## Local run
 
 ```bash

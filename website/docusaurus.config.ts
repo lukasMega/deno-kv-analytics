@@ -49,6 +49,14 @@ const config: Config = {
     v4: true, // Improve compatibility with the upcoming Docusaurus v4
   },
 
+  // Mermaid, so the flow diagram is one ```mermaid block that renders both here
+  // and unmodified in README.md — GitHub renders mermaid natively, so the two
+  // cannot drift into different pictures of the same pipeline.
+  markdown: {
+    mermaid: true,
+  },
+  themes: ['@docusaurus/theme-mermaid'],
+
   url: `https://${ORG}.github.io`,
   // Project Pages site: served under /<repo>/, so every reported path carries
   // that prefix in the dashboard.

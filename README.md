@@ -19,6 +19,33 @@ Add one tag to a page and you are collecting:
 [Getting started](https://lukasmega.github.io/deno-kv-analytics/deploy) ·
 [Privacy](https://lukasmega.github.io/deno-kv-analytics/privacy)
 
+![The dashboard: KPI tiles, trend chart, day×hour heatmap and independent per-dimension breakdowns](docs/dashboard.png)
+
+_The dashboard, on seeded demo data — `deno task demo` reproduces it with no
+real traffic._
+
+## How it works
+
+```mermaid
+flowchart TD
+  V["Visitor's page<br/>#60;script src=/s.js#62;"]
+  B["Beacon<br/>client/beacon.ts"]
+  C["Collector<br/>src/main.ts"]
+  K[("Deno KV<br/>c · site · day · dim · value")]
+  D["Dashboard /dashboard"]
+
+  V -->|"loads /s.js"| B
+  B -->|"GET /e → 1×1 gif"| C
+  C -->|"bot UA → bot + bot_kind"| K
+  C -->|"else → 12 pageview dims"| K
+  K -->|"GET /stats + token"| D
+```
+
+No cookie, no IP, no fingerprint is ever read or stored. Browser and OS are
+derived from the request `user-agent` server-side, one counter is incremented
+per dimension, and the same 1×1 gif comes back either way — including for a site
+that cannot be resolved, which writes nothing at all.
+
 ## Quick start
 
 ```bash
