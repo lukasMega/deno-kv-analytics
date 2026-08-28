@@ -55,7 +55,28 @@ const config: Config = {
   markdown: {
     mermaid: true,
   },
-  themes: ['@docusaurus/theme-mermaid'],
+  // Local offline search: `@easyops-cn/docusaurus-search-local` builds a static
+  // lunr index at build time that is queried in-browser, so search makes no
+  // request to any third party (no Algolia) and works from a file:// copy or
+  // offline. Deliberately not Algolia DocSearch — this site's own privacy claim
+  // would be undercut by shipping a search widget that phones home.
+  themes: [
+    '@docusaurus/theme-mermaid',
+    [
+      require.resolve('@easyops-cn/docusaurus-search-local'),
+      {
+        // Docs are served at the site root (`routeBasePath: '/'`), so the
+        // indexer needs the same base or every hit links to a 404.
+        docsRouteBasePath: '/',
+        indexBlog: false,
+        language: ['en'],
+        hashed: true, // content-hashed index filename → long-term cacheable
+        highlightSearchTermsOnTargetPage: true,
+        searchResultLimits: 8,
+        searchResultContextMaxLength: 50,
+      },
+    ],
+  ],
 
   url: `https://${ORG}.github.io`,
   // Project Pages site: served under /<repo>/, so every reported path carries
