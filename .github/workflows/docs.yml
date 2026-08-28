@@ -29,20 +29,23 @@ jobs:
         working-directory: website
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-          cache-dependency-path: website/package-lock.json
-      - run: npm ci
-      - run: npm run typecheck
+          cache: pnpm
+          cache-dependency-path: website/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run typecheck
       # onBrokenLinks: 'throw' — a dead link fails the build here, not silently
       # in production.
       # Repo-level variables, not environment ones: the `github-pages`
       # environment is only attached to the deploy job, so its variables are
       # invisible here — and attaching it to this job would make PR builds fail
       # its branch protection. Unset just omits the beacon.
-      - run: npm run build
+      - run: pnpm run build
         env:
           COLLECTOR_ORIGIN: ${{ vars.COLLECTOR_ORIGIN }}
           COLLECTOR_SITE_ID: ${{ vars.COLLECTOR_SITE_ID }}
