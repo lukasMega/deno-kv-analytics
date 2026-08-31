@@ -1,6 +1,6 @@
 # deno-kv-analytics
 
-[![views](https://tst.lukasmega.deno.net/badge?site=deno-kv-analytics)](https://lukasmega.github.io/deno-kv-analytics/badge)
+[![views](https://tst.lukasmega.deno.net/badge?site=deno-kv-analytics&total=1&label=docs%20views%2030d%20%2B%20all)](https://lukasmega.github.io/deno-kv-analytics/badge)
 
 Cookieless pageview collector on Deno KV. No cookies, no IP storage, no
 fingerprint → **no consent banner**. Stores daily aggregate counts. Runs on the
