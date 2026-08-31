@@ -57,10 +57,13 @@ All application code lives in `src/`, including runtime assets — they must sta
 flat siblings of `src/main.ts` (see Deploy invariant). `scripts/` holds build
 tooling that never ships.
 
-- `src/main.ts` — routing, ingest and KV reads: `eq`, `readStats`, `prune` +
+- `src/main.ts` — routing, ingest and cron: `eq`, `prune` +
   `createHandler(kv, sites)`. `Deno.serve`/`Deno.cron` run only under
   `import.meta.main` so tests can import the handler; on Deploy that guard is
   true, so the cron still registers at module top level.
+- `src/reads.ts` — KV read helpers split out of `main.ts` to stay under the line
+  cap: `readStats`, `readPvRange`, `totalKey`, `readPvTotal`, `badgeSites`.
+  Re-exported from `main.ts` so existing imports don't change.
 - `src/classify.ts` — request → dimension values: `parseUA`, `botKind`,
   `refGroup`, `country`, `clamp` (the 128-char cap). Pure and separately
   testable; owns the isbot dependency.
@@ -173,7 +176,7 @@ key and uses `.sum()` not `.set()`, so it is crash-safe and rerunnable. Once
 - Comments explain _why_ a non-obvious choice was made (Deploy quirks, privacy
   tradeoffs, write cost). Match that, and update the comment when the reasoning
   changes.
-- Files stay under ~550 lines; extract a new module rather than growing
+- Files stay under 500 lines; extract a new module rather than growing
   `main.ts`.
 - `npm:`/`jsr:` specifiers go in `deno.json` imports, not inline — `deno lint`
   rejects inline ones.
