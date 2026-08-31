@@ -6,8 +6,8 @@ description: Why the schema, the write budget, the bot handling and the Deploy l
 
 # Design notes
 
-Everything here is _why_, not _how_. Nothing on this page is needed to install or
-run the collector; it is the reasoning you want before changing it.
+Everything here is _why_, not _how_. Nothing on this page is needed to install
+or run the collector; it is the reasoning you want before changing it.
 
 ## Data model
 
@@ -15,6 +15,18 @@ run the collector; it is the reasoning you want before changing it.
 key   = ["c", site, day, dim, value]     // exactly 5 segments
 value = bigint, via kv.atomic().sum(key, 1n)
 ```
+
+One exception, deliberately outside that prefix:
+
+```
+key   = ["t", site, "pv"]                // all-time pageviews, never pruned
+```
+
+It is separate because everything under `["c", …]` is day-keyed and therefore
+deleted by `prune` after 400 days — an "all time" number summed from those keys
+would quietly start shrinking. Written only for sites in `BADGE_SITES`, in the
+same atomic commit as the day counters, so it cannot drift from `pv`. Reading it
+is one point get instead of 400.
 
 One atomic commit per hit. Dims are counted **independently** — no
 co-occurrence, so no cross-dim segmentation. That is precisely what keeps the
@@ -38,6 +50,10 @@ site id may legitimately look like a date and would otherwise collide with the
 A **pageview** (`d.ev` absent) always writes 12 dims: `pv`, `path`, `host`,
 `ref`, `ref_group`, `lang`, `tz`, `browser`, `os`, `device`, `hour` (UTC,
 `00`–`23`), `dowhour`.
+
+`pv` is a raw hit counter, never deduped: one reader reloading four times is
+`pv` +4 (and `uv` +1, `sessions` +1). An SPA route change counts as a pageview
+too — the beacon wraps `pushState`/`replaceState` and listens for `popstate`.
 
 Plus, only when present:
 
@@ -66,22 +82,26 @@ the next day's hour.
 
 The canonical numbers — every other page links here rather than restating them.
 
-The Deno KV free tier is roughly **300K write units/month**. A pageview writes 12
-counters, one write unit each:
+The Deno KV free tier is roughly **300K write units/month**. A pageview writes
+12 counters, one write unit each:
 
-| traffic | cost | budget |
-| --- | --- | --- |
-| pageview, no interaction | 12 units | ≈ **25K pv/mo** |
-| pageview + behavioral probe fires | 13 units | ≈ **23K pv/mo** |
-| bot hit | 2 units | does not compete — never writes `pv` |
+| traffic                           | cost     | budget                               |
+| --------------------------------- | -------- | ------------------------------------ |
+| pageview, no interaction          | 12 units | ≈ **25K pv/mo**                      |
+| pageview + behavioral probe fires | 13 units | ≈ **23K pv/mo**                      |
+| bot hit                           | 2 units  | does not compete — never writes `pv` |
+
+Add **1 unit** to each pageview row for a site listed in `BADGE_SITES` (the
+all-time counter): 13 → ≈23K pv/mo, 14 → ≈21K pv/mo. Sites without a badge are
+unaffected, which is the reason that write is gated rather than unconditional.
 
 That budget is **shared across every site on the deployment**, not per site.
 Eight projects at an even split is ~3K pageviews each. There is no per-site cap
 today; watch the per-site `pv` on the dashboard if one project going viral is a
 risk.
 
-**Adding a dim is a budget change, not a cosmetic one.** It costs a write unit on
-every pageview of every site.
+**Adding a dim is a budget change, not a cosmetic one.** It costs a write unit
+on every pageview of every site.
 
 A top-level `Deno.cron` prunes days older than 400, **per site** — the "first
 in-range day → stop" early exit is only valid inside one site's prefix, because
@@ -158,11 +178,11 @@ values): a **true day×hour joint counter**, which is what the dashboard heatmap
 renders.
 
 It is the schema's only pairwise key and it is intentional. `dow` and `hour` as
-separate independent counters are _marginals_; multiplying them into a grid would
-fabricate an outer product rather than show real co-occurrence. Storing the joint
-key directly costs the same 1 write unit a standalone `dow` dim would, so the
-honest version is free. Per-weekday totals are recovered by summing `dowhour`
-over hours — no separate `dow` dim exists.
+separate independent counters are _marginals_; multiplying them into a grid
+would fabricate an outer product rather than show real co-occurrence. Storing
+the joint key directly costs the same 1 write unit a standalone `dow` dim would,
+so the honest version is free. Per-weekday totals are recovered by summing
+`dowhour` over hours — no separate `dow` dim exists.
 
 Do not add a second pairwise dim without accepting the same tradeoff.
 
@@ -186,10 +206,11 @@ than stored as an empty key.
 <summary><b><code>z</code> — why the payload carries a random field</b></summary>
 
 The beacon is an `Image()` GET, and a browser collapses an image request whose
-URL exactly repeats an earlier one — verified in Chrome, `cache-control:
-no-store` notwithstanding. Without a nonce every _repeated_ beacon is silently
-lost: the same `hi` latency bucket on a second pageview, an A→B→A→B SPA path
-loop, a second click on the same download link.
+URL exactly repeats an earlier one — verified in Chrome,
+`cache-control:
+no-store` notwithstanding. Without a nonce every _repeated_
+beacon is silently lost: the same `hi` latency bucket on a second pageview, an
+A→B→A→B SPA path loop, a second click on the same download link.
 
 `z` is 6 random chars, sent inside the opaque payload rather than as a visible
 `?_=<ts>` param so the URL keeps its bland shape. The server ignores it; it is
@@ -227,9 +248,9 @@ It is also why `deno.json` scopes its excludes to `fmt`/`lint` only: a top-level
 
 :::
 
-Related: `src/s.js` is build output but **is** committed, because Deploy runs the
-repo with no build step. `mise run check-beacon` fails the build if it drifts
-from `src/client/beacon.ts`. Never hand-edit it.
+Related: `src/s.js` is build output but **is** committed, because Deploy runs
+the repo with no build step. `mise run check-beacon` fails the build if it
+drifts from `src/client/beacon.ts`. Never hand-edit it.
 
 ## Which database a process opens
 
@@ -265,19 +286,19 @@ build tooling that never ships.
 <details>
 <summary><b>File-by-file</b></summary>
 
-| file | what |
-| --- | --- |
-| `src/main.ts` | routing, ingest, KV reads — also the Deploy entrypoint |
-| `src/classify.ts` | request → dimension values: `parseUA`, `botKind`, `refGroup`, `country`, `clamp` |
-| `src/sites.ts` | site allowlist, Host→site resolution, per-site tokens |
-| `src/kv.ts` | `openKv()` — which database, plus `taskArgs()` |
-| `src/client/beacon.ts` | browser beacon → built to `src/s.js`, served at `/s.js` |
-| `src/admin.ts` | operator CLI: list / size / usage / delete |
-| `src/migrate.ts` | one-shot rekey of pre-multi-site data |
-| `src/dashboard.html` `.js` `.css` | the UI; `src/dash-charts.js` holds trend chart + heatmap |
-| `src/help.html` / `src/help.js` | guided setup, one live check per step |
-| `src/da-common.js` | token/site controls + `/stats` fetch, shared by both pages |
-| `src/uPlot.*` | vendored uPlot js+css (flat sibling, **not** a `vendor/` dir) |
-| `src/*_test.ts` | round-trip tests over in-memory KV (`deno task test`) |
+| file                              | what                                                                             |
+| --------------------------------- | -------------------------------------------------------------------------------- |
+| `src/main.ts`                     | routing, ingest, KV reads — also the Deploy entrypoint                           |
+| `src/classify.ts`                 | request → dimension values: `parseUA`, `botKind`, `refGroup`, `country`, `clamp` |
+| `src/sites.ts`                    | site allowlist, Host→site resolution, per-site tokens                            |
+| `src/kv.ts`                       | `openKv()` — which database, plus `taskArgs()`                                   |
+| `src/client/beacon.ts`            | browser beacon → built to `src/s.js`, served at `/s.js`                          |
+| `src/admin.ts`                    | operator CLI: list / size / usage / delete                                       |
+| `src/migrate.ts`                  | one-shot rekey of pre-multi-site data                                            |
+| `src/dashboard.html` `.js` `.css` | the UI; `src/dash-charts.js` holds trend chart + heatmap                         |
+| `src/help.html` / `src/help.js`   | guided setup, one live check per step                                            |
+| `src/da-common.js`                | token/site controls + `/stats` fetch, shared by both pages                       |
+| `src/uPlot.*`                     | vendored uPlot js+css (flat sibling, **not** a `vendor/` dir)                    |
+| `src/*_test.ts`                   | round-trip tests over in-memory KV (`deno task test`)                            |
 
 </details>

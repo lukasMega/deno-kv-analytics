@@ -113,6 +113,14 @@ top-level `exclude` drops files from the upload and they 404).
 via `kv.atomic().sum(key, 1n)`. Reads filter on `key.length` because a site id
 may legitimately look like a date and collide with the 4-segment legacy prefix.
 
+**One key lives outside that prefix: `["t", site, "pv"]`** (`totalKey` in
+`main.ts`), the all-time pageview count behind `/badge?days=all`. It is separate
+precisely so `prune` cannot delete it, and it is written only for sites in
+`BADGE_SITES` — a site with no badge pays no write unit for it. Anything that
+walks a site's data must walk **both** prefixes: `admin.ts` `deleteSite` and
+`sizeOf` do, and an erasure that missed `["t", site]` would leave a live total
+behind.
+
 **Dims are counted independently** — no co-occurrence, so no cross-dim
 segmentation, which is what keeps the no-consent claim true. One deliberate
 exception: `dowhour` (`"<dow>-<hh>"`) is a real joint counter for the heatmap.
@@ -132,11 +140,13 @@ any site, only token allowed on `/sites`); `STATS_TOKEN_<ID>` is per-site
 token matches".
 
 **`/badge` is the only unauthenticated read.** Opt-in per site via `BADGE_SITES`
-(unset → no badge, never "all sites"), and it exposes exactly one number: the
-`pv` total over a clamped window, read with point `getMany`s, never `readStats`.
-A site that did not opt in returns the same 404 as one that does not exist —
-otherwise the badge enumerates site ids. Widening it to another dim reopens the
-authenticated-read boundary.
+(unset → no badge, never "all sites"), and it exposes only `pv` counts: a
+clamped window (`days`, point `getMany`s, never `readStats`), the all-time total
+(`days=all`, one `get` on `totalKey`), or both (`total=1`). A site that did not
+opt in returns the same 404 as one that does not exist — otherwise the badge
+enumerates site ids. Widening it to another dim reopens the authenticated-read
+boundary. Every `?color=`/`?labelColor=`/`?totalColor=` goes through `safeColor`
+and `?label=` through `safeLabel` before it reaches the SVG.
 
 **`prune` loops per site.** Keys sort by site then day, so the "first in-range
 day → stop" early exit is only valid inside one site's prefix.

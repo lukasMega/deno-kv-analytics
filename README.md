@@ -73,11 +73,14 @@ Full semantics, Host→site resolution and the operator CLI:
 ## Badge it
 
 ```markdown
-![views](https://stats.example.com/badge?site=acme)
+![views](https://stats.example.com/badge?site=acme) <!-- last 30 days -->
+![views](https://stats.example.com/badge?site=acme&days=all) <!-- all time -->
+![views](https://stats.example.com/badge?site=acme&total=1) <!-- both -->
 ```
 
 An SVG view counter for a README — the badge at the top of this file is this
-collector counting its own docs site. Opt-in per site, one number, no token:
+collector counting its own docs site. Opt-in per site, no token, colors and
+label configurable:
 **[Badge](https://lukasmega.github.io/deno-kv-analytics/badge)**.
 
 <details>

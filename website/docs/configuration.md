@@ -24,7 +24,7 @@ throws at boot rather than silently creating a site nobody writes to.
 | `PORT` | listen port for a self-hosted run; unset lets Deno pick (Deploy sets it) |
 | `KV_PATH` | pins one local sqlite file for every local task ([why](./design.md#which-database-a-process-opens)); Deploy never sets it |
 | `LEGACY_SITE` | migration bridge only — see [below](#migrating-from-the-single-site-layout) |
-| `BADGE_SITES` | comma-separated site ids allowed a public README [badge](./badge.md); unset → none |
+| `BADGE_SITES` | comma-separated site ids allowed a public README [badge](./badge.md); unset → none. Also switches on that site's all-time counter (+1 write unit per pageview) |
 
 Unset must mean "no access" — never "any token matches".
 

@@ -48,35 +48,65 @@ export function safeColor(raw: string | null, fallback = "#0b6bcb"): string {
 }
 
 /**
- * Flat badge, shields.io's classic geometry: grey label box, colored value box,
- * a 1px gradient overlay and the text drawn twice (dark shadow + white) so it
- * stays readable against both halves.
+ * Flat badge, shields.io's classic geometry: label box, one or more colored
+ * value boxes, a 1px gradient overlay and the text drawn twice (dark shadow +
+ * white) so it stays readable against every segment.
+ *
+ * `value` takes an array to render several numbers in one image — the window
+ * count next to the all-time count. Kept as one SVG rather than two badges so a
+ * README needs one request and the boxes line up; a single string still renders
+ * byte-identically to the original two-box badge.
+ *
+ * `color` may be one entry per value; a short list reuses its last entry, so a
+ * single color still paints every box.
  */
 export function badgeSvg(
   label: string,
-  value: string,
-  color = "#0b6bcb",
+  value: string | string[],
+  color: string | string[] = "#0b6bcb",
+  labelColor = "#555",
 ): string {
+  const values = (Array.isArray(value) ? value : [value]).map(escapeXml);
+  const colors = Array.isArray(color) ? color : [color];
   const lw = textWidth(label);
-  const vw = textWidth(value);
-  const w = lw + vw;
+  const vws = values.map(textWidth);
+  const w = lw + vws.reduce((a, b) => a + b, 0);
   const l = escapeXml(label);
-  const v = escapeXml(value);
+
+  const rects: string[] = [];
+  const texts: string[] = [];
+  let x = lw;
+  for (let i = 0; i < values.length; i++) {
+    const fill = colors[i] ?? colors[colors.length - 1];
+    rects.push(
+      `<rect x="${x}" width="${vws[i]}" height="20" fill="${fill}"/>`,
+    );
+    const cx = x + vws[i] / 2;
+    texts.push(
+      `<text x="${cx}" y="15" fill="#010101" fill-opacity=".3">${
+        values[i]
+      }</text>`,
+      `<text x="${cx}" y="14">${values[i]}</text>`,
+    );
+    x += vws[i];
+  }
+
   // aria-label, not <title>: a badge is content, and screen readers should read
   // "views: 12.3k" rather than announcing an unlabeled image.
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="20" role="img" aria-label="${l}: ${v}">
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="20" role="img" aria-label="${l}: ${
+    values.join(", ")
+  }">
 <linearGradient id="s" x2="0" y2="100%"><stop offset="0" stop-color="#bbb" stop-opacity=".1"/><stop offset="1" stop-opacity=".1"/></linearGradient>
 <clipPath id="r"><rect width="${w}" height="20" rx="3" fill="#fff"/></clipPath>
 <g clip-path="url(#r)">
-<rect width="${lw}" height="20" fill="#555"/>
-<rect x="${lw}" width="${vw}" height="20" fill="${color}"/>
+<rect width="${lw}" height="20" fill="${labelColor}"/>
+${rects.join("\n")}
 <rect width="${w}" height="20" fill="url(#s)"/>
 </g>
 <g fill="#fff" text-anchor="middle" font-family="Verdana,Geneva,DejaVu Sans,sans-serif" font-size="11">
 <text x="${lw / 2}" y="15" fill="#010101" fill-opacity=".3">${l}</text>
 <text x="${lw / 2}" y="14">${l}</text>
-<text x="${lw + vw / 2}" y="15" fill="#010101" fill-opacity=".3">${v}</text>
-<text x="${lw + vw / 2}" y="14">${v}</text>
+${texts.join("\n")}
 </g>
 </svg>`;
 }

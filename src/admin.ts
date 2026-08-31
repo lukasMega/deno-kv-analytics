@@ -35,11 +35,15 @@ export async function usage(kv: Deno.Kv, site: string) {
     days.add(row.key[2] as string);
   }
   const sorted = [...days].sort();
+  // The all-time counter lives outside the day-keyed prefix (it must survive
+  // prune), so it is read separately — see main.ts `totalKey`.
+  const total = await kv.get<Deno.KvU64>(["t", site, "pv"]);
   return {
     keys,
     days: days.size,
     first: sorted[0] ?? null,
     last: sorted.at(-1) ?? null,
+    allTimePv: total.value ? Number(total.value.value) : 0,
   };
 }
 
@@ -57,6 +61,8 @@ export async function usage(kv: Deno.Kv, site: string) {
 export async function sizeOf(kv: Deno.Kv) {
   const sites = new Map<string, { keys: number; bytes: number }>();
   let keys = 0, bytes = 0;
+  // `["t"]` too: the all-time counters are one row per site, negligible in
+  // bytes, but leaving them out makes this disagree with `deleteSite`'s count.
   for await (const row of kv.list({ prefix: ["c"] })) {
     const n = row.key.reduce<number>((t, s) => t + String(s).length + 2, 0) +
       10;
@@ -70,19 +76,38 @@ export async function sizeOf(kv: Deno.Kv) {
     acc.bytes += n;
     sites.set(site, acc);
   }
+  for await (const row of kv.list({ prefix: ["t"] })) {
+    const n = row.key.reduce<number>((t, s) => t + String(s).length + 2, 0) +
+      10;
+    keys++;
+    bytes += n;
+    const acc = sites.get(row.key[1] as string) ?? { keys: 0, bytes: 0 };
+    acc.keys++;
+    acc.bytes += n;
+    sites.set(row.key[1] as string, acc);
+  }
   return { keys, bytes, sites: Object.fromEntries([...sites].sort()) };
 }
 
-/** Irreversible: deletes every counter belonging to one site. */
+/**
+ * Irreversible: deletes every counter belonging to one site.
+ *
+ * Both prefixes: the day counters under `["c", site]` **and** the all-time
+ * counter under `["t", site]`. Missing the second one would leave a live
+ * pageview total behind after an erasure request, which is the one thing this
+ * command exists to prevent.
+ */
 export async function deleteSite(kv: Deno.Kv, site: string): Promise<number> {
   let n = 0;
   let batch: Promise<unknown>[] = [];
-  for await (const row of kv.list({ prefix: ["c", site] })) {
-    batch.push(kv.delete(row.key));
-    n++;
-    if (batch.length >= BATCH) {
-      await Promise.all(batch);
-      batch = [];
+  for (const prefix of [["c", site], ["t", site]]) {
+    for await (const row of kv.list({ prefix })) {
+      batch.push(kv.delete(row.key));
+      n++;
+      if (batch.length >= BATCH) {
+        await Promise.all(batch);
+        batch = [];
+      }
     }
   }
   await Promise.all(batch);

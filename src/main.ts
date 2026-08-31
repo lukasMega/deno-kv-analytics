@@ -134,6 +134,36 @@ export async function readPvRange(
   return total;
 }
 
+/**
+ * The all-time `pv` counter for a site.
+ *
+ * Deliberately **not** under `["c", site, day, …]`: `prune` deletes day
+ * counters past `RETENTION_DAYS`, so a "total" summed from them silently starts
+ * shrinking once a site is older than that. Its own prefix survives prune, is
+ * one point read instead of 400, and stays out of `readStats`/`/stats` (which
+ * are per-day by definition).
+ */
+export const totalKey = (site: string): Deno.KvKey => ["t", site, "pv"];
+
+/** All-time pageviews for a site. Zero until the site opts into `BADGE_SITES`. */
+export async function readPvTotal(kv: Deno.Kv, site: string): Promise<number> {
+  const row = await kv.get<Deno.KvU64>(totalKey(site));
+  return row.value ? Number(row.value.value) : 0;
+}
+
+/**
+ * Sites allowed a public badge. Unset → nobody (never "all sites").
+ *
+ * Also gates the all-time counter write: it costs a write unit on every
+ * pageview, so only sites that can actually display it should pay for it.
+ */
+function badgeSites(): Set<string> {
+  return new Set(
+    (Deno.env.get("BADGE_SITES") ?? "")
+      .split(",").map((s) => s.trim().toLowerCase()).filter(Boolean),
+  );
+}
+
 function nextDay(day: string): string {
   const d = new Date(day + "T00:00:00Z");
   d.setUTCDate(d.getUTCDate() + 1);
@@ -292,6 +322,10 @@ export function createHandler(kv: Deno.Kv, sites: Map<string, Site>) {
       for (const [dim, value] of dims) {
         tx = tx.sum(["c", site, day, dim, value], 1n);
       }
+      // All-time counter, same commit so it can never drift from `pv`. One extra
+      // write unit per pageview (12 → 13 dims), which is why it is gated on the
+      // site having a badge to display it — see `totalKey`.
+      if (!isEvent && badgeSites().has(site)) tx = tx.sum(totalKey(site), 1n);
       await tx.commit();
       return gif();
     }
@@ -364,28 +398,56 @@ export function createHandler(kv: Deno.Kv, sites: Map<string, Site>) {
 
     // --- public README badge (SVG) ---
     // The only unauthenticated read in the app, so it is opt-in per site via
-    // `BADGE_SITES` and exposes exactly one number: the `pv` total over a
-    // window. No dim breakdown, no bot/event data, no way to widen it by param.
-    // Unset BADGE_SITES → no site has a badge (never "all sites").
+    // `BADGE_SITES` and exposes only `pv` counts: a window total, an all-time
+    // total, or both. No dim breakdown, no bot/event data, no way to widen it
+    // to another dim. Unset BADGE_SITES → no site has a badge.
     if (req.method === "GET" && url.pathname === "/badge") {
-      const allowed = (Deno.env.get("BADGE_SITES") ?? "")
-        .split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
       // Same 404 for "no such site" and "not opted in": a prober must not be
       // able to enumerate site ids, same reason /e answers a gif either way.
-      if (!site || !allowed.includes(site)) {
+      if (!site || !badgeSites().has(site)) {
         return new Response("not found", { status: 404 });
       }
 
-      const n = Number(url.searchParams.get("days") ?? 30);
+      const q = url.searchParams;
+      // `days=all` reads the lifetime counter instead of a window. Any other
+      // value is clamped to the retention window, because days older than that
+      // are pruned and would silently read as zero.
+      const rawDays = q.get("days") ?? "30";
+      const allTime = rawDays === "all";
+      const n = Number(rawDays);
       const days = Math.min(
         Math.max(Number.isFinite(n) ? Math.floor(n) : 30, 1),
         RETENTION_DAYS,
       );
-      const total = await readPvRange(kv, site, days);
+      // `total=1` renders both numbers in one image. Redundant when the window
+      // already *is* all time, so `days=all` wins and drops the second box.
+      const withTotal = !allTime && q.get("total") === "1";
+
+      const values: string[] = [];
+      const colors = [safeColor(q.get("color"))];
+      let fallbackLabel: string;
+      if (allTime) {
+        values.push(formatCount(await readPvTotal(kv, site)));
+        fallbackLabel = "views (all)";
+      } else if (withTotal) {
+        const [win, total] = await Promise.all([
+          readPvRange(kv, site, days),
+          readPvTotal(kv, site),
+        ]);
+        values.push(formatCount(win), formatCount(total));
+        colors.push(safeColor(q.get("totalColor"), "#8957e5"));
+        // Charset matches safeLabel's, so an operator can retype the default.
+        fallbackLabel = `views ${days}d + all`;
+      } else {
+        values.push(formatCount(await readPvRange(kv, site, days)));
+        fallbackLabel = `views (${days}d)`;
+      }
+
       const svg = badgeSvg(
-        safeLabel(url.searchParams.get("label"), `views (${days}d)`),
-        formatCount(total),
-        safeColor(url.searchParams.get("color")),
+        safeLabel(q.get("label"), fallbackLabel),
+        values,
+        colors,
+        safeColor(q.get("labelColor"), "#555"),
       );
       return new Response(svg, {
         headers: {
