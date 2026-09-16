@@ -22,6 +22,10 @@ Add one tag to a page and you are collecting:
 [Design notes](https://lukasmega.github.io/deno-kv-analytics/design) ·
 [Privacy](https://lukasmega.github.io/deno-kv-analytics/privacy)
 
+
+> **⚠️ Experimental project:** this is just simple, not production ready project. The author does not plan to add
+> support for more features.
+
 ## See it
 
 ```bash
