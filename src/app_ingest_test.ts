@@ -2,7 +2,7 @@
 // shape as main_test.ts — encode a payload exactly as the client does, run it
 // through createHandler over an in-memory KV, assert /stats.
 import { assertEquals } from "@std/assert";
-import { appDims, decodeAppPayload } from "./app_ingest.ts";
+import { appCountry, appDims, decodeAppPayload } from "./app_ingest.ts";
 import { createHandler } from "./main.ts";
 import { loadSites } from "./sites.ts";
 
@@ -151,6 +151,27 @@ Deno.test("appDims: an unbucketed os version is dropped, not clamped", () => {
     const dims = appDims({ ov });
     assertEquals(dims.some(([dim]) => dim === "app_os_version"), false, ov);
   }
+});
+
+Deno.test("appCountry: takes the region half of a locale tag", () => {
+  assertEquals(appCountry("sk-SK"), "SK");
+  assertEquals(appCountry("SK"), "SK");
+  assertEquals(appCountry("en-US"), "US");
+});
+
+Deno.test("appCountry: off-shape or absent is dropped, not just unclamped", () => {
+  for (const v of [undefined, "", "sk-slovakia", "a", "1234"]) {
+    assertEquals(appCountry(v), null, String(v));
+  }
+});
+
+Deno.test("a ping without cf-ipcountry falls back to the app's locale country", async () => {
+  const { kv, h } = await fixture();
+  await h(ping(encode({ os: "macos", v: "0.15.0", country: "sk-SK" })));
+
+  const stats = await (await h(statsReq())).json();
+  assertEquals(stats.country?.SK, 1);
+  kv.close();
 });
 
 Deno.test("appDims: tz offset is a fixed shape, anything else is dropped", () => {

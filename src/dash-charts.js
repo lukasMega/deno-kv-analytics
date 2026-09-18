@@ -50,7 +50,7 @@ export async function renderChart(series, showBots) {
   const bots = series.map((r) => r[4] ?? 0);
   const apps = series.map((r) => r[5] ?? 0);
   const points = { show: series.length < 60 };
-  const width = el.parentElement.clientWidth;
+  const width = el.parentElement.clientWidth || $("chartPanel").clientWidth;
   // bot line is added only when opted in — its scale can dwarf pv on a quiet
   // day, and it is not a human metric
   const botSeries = showBots
@@ -100,10 +100,12 @@ export async function renderChart(series, showBots) {
     el,
   );
 }
-globalThis.addEventListener("resize", () => {
-  if (!chart) return;
+function resizeChart() {
+  if (!chart || !$("chartPanel").open) return;
   chart.setSize({ width: $("chart").parentElement.clientWidth, height: 180 });
-});
+}
+globalThis.addEventListener("resize", resizeChart);
+$("chartPanel").addEventListener("toggle", resizeChart);
 
 // --- day×hour heatmap (from the pairwise `dowhour` dim: real co-occurrence) ---
 // Rows are Mon→Sun; the stored dow index is 0=Sun, hence the reordering.
@@ -128,13 +130,12 @@ function hmStep(v, max) {
 export function renderHeatmap(dowhour) {
   const wrap = $("heatmapWrap");
   if (!dowhour || !Object.keys(dowhour).length) {
-    wrap.innerHTML = '<div class="dim">day × hour (UTC)</div>' +
-      '<p class="hint">no day×hour data for this range yet</p>';
+    wrap.innerHTML = '<p class="hint">no day×hour data for this range yet</p>';
     return;
   }
   const max = Math.max(...Object.values(dowhour));
 
-  let h = '<div class="dim">day × hour (UTC)</div><div class="hmGrid">';
+  let h = '<div class="hmGrid">';
   h += '<div class="hmHead"></div>';
   for (let hr = 0; hr < 24; hr++) {
     h += '<div class="hmHead">' +

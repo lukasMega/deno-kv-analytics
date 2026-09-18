@@ -18,6 +18,9 @@ const MAX_DEVICE_IDS = 8;
 const OS_VERSION = /^[a-z][a-z0-9_]{0,15}(-[a-z0-9.]{1,12})?$/;
 // Offset, not an IANA zone: under 40 values, and far less identifying.
 const TZ_OFFSET = /^(UTC[+-]\d{2}:\d{2}|unknown)$/;
+// Client sends a locale tag (`sk-SK`) or a bare region; only the region half
+// is a country, so take the last `-` segment and validate that.
+const COUNTRY = /^[a-z]{2,3}$/i;
 
 /** Malformed input is ignored rather than rejected — a broken client should
  *  degrade to an empty ping, not to an error it has no way to act on. */
@@ -45,6 +48,14 @@ export function appDims(d: Record<string, string>): [string, string][] {
   return dims;
 }
 
+/** Region half of a client-sent locale tag, uppercased; `null` if absent or
+ *  off-shape. Same fallback role for `/a` as `cf-ipcountry` plays for `/e` —
+ *  bare Deno Deploy exposes no header-based geo, so the app self-reports. */
+export function appCountry(v: string | undefined): string | null {
+  const region = (v ?? "").split("-").pop() ?? "";
+  return COUNTRY.test(region) ? region.toUpperCase() : null;
+}
+
 /** One atomic commit, same `["c", site, day, dim, value]` shape as a pageview. */
 export async function writeAppPing(
   kv: Deno.Kv,
@@ -53,8 +64,9 @@ export async function writeAppPing(
   req: Request,
   url: URL,
 ): Promise<void> {
-  const dims = appDims(decodeAppPayload(url.searchParams.get("v")));
-  const cc = country(req);
+  const d = decodeAppPayload(url.searchParams.get("v"));
+  const dims = appDims(d);
+  const cc = country(req) ?? appCountry(d.country);
   if (cc) dims.push(["country", cc]);
 
   let tx = kv.atomic();
