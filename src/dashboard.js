@@ -96,6 +96,8 @@ const DIM_ORDER = [
   // desktop-app ping dims (app_ingest.ts). Absent on a browser-only site, and
   // renderBreakdowns skips a missing dim, so listing them costs nothing there.
   "app_os",
+  "app_os_version",
+  "app_tz_offset",
   "app_version",
   "app_device",
 ];
