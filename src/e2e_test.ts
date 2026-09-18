@@ -108,8 +108,8 @@ Deno.test("e2e: beacon → KV → /stats, and every served asset resolves", asyn
     );
     const stats = await res.json();
     assertEquals(stats.site, "demo");
-    // [day, pv, uv, sessions, bot] — the event hit must not inflate pv
-    assertEquals(stats.series, [[day, 1, 1, 1, 0]]);
+    // [day, pv, uv, sessions, bot, app] — the event hit must not inflate pv
+    assertEquals(stats.series, [[day, 1, 1, 1, 0, 0]]);
     assertEquals(stats.path["/docs/intro"], 1);
     assertEquals(stats.ref_group.search, 1);
     assertEquals(stats.event.download, 1);
