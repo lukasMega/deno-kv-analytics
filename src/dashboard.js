@@ -12,7 +12,8 @@ import {
   statsFetch,
   todayIso,
 } from "/da-common.js";
-import { renderChart, renderHeatmap } from "/dash-charts.js?v=2";
+import { renderChart, renderHeatmap } from "/dash-charts.js?v=chart-collapse";
+import { timezoneGlobe } from "/timezone-globe.js";
 
 // --- period math (UTC, matches server) ---
 const LAUNCH = "2026-06-23";
@@ -113,6 +114,68 @@ const CSV_DIMS = [...DIM_ORDER, ...BOT_DIMS, "app", "dowhour"];
 // toggle — high-cardinality dims (path, ref, event_target) otherwise dominate
 // the page height. A search query overrides the cap (see applyFilter).
 const BD_TOP = 10;
+function setBreakdownView(cards) {
+  $("breakdowns").classList.toggle("cards", cards);
+  $("viewCards").setAttribute("aria-pressed", String(cards));
+  $("viewBars").setAttribute("aria-pressed", String(!cards));
+}
+$("viewCards").onclick = () => setBreakdownView(true);
+$("viewBars").onclick = () => setBreakdownView(false);
+
+const timezoneModal = document.createElement("dialog");
+timezoneModal.id = "timezoneModal";
+timezoneModal.setAttribute("aria-labelledby", "timezoneTitle");
+document.body.appendChild(timezoneModal);
+const timezoneExamples = new Map();
+function showTimezoneDetails(row) {
+  const offset = row.dataset.offset;
+  if (!timezoneExamples.has(offset)) {
+    const now = new Date();
+    const zones = Intl.supportedValuesOf("timeZone").filter((timeZone) => {
+      const value = new Intl.DateTimeFormat("en", {
+        timeZone,
+        timeZoneName: "longOffset",
+      }).formatToParts(now).find((part) => part.type === "timeZoneName").value;
+      return value.replace("GMT", "UTC").replace(/^UTC$/, "UTC+00:00") ===
+        offset;
+    });
+    timezoneExamples.set(offset, zones);
+  }
+  const zones = timezoneExamples.get(offset);
+  timezoneModal.innerHTML =
+    '<div class="timezoneModalHead"><h2 id="timezoneTitle">' + esc(offset) +
+    ' · timezone details</h2><form method="dialog"><button aria-label="Close timezone details">✕</button></form></div>' +
+    '<p class="hint">Current offsets today. Offset alone cannot identify timezone. DST changes matches.</p>' +
+    '<div class="timezoneModalBody"><div>' + timezoneGlobe(zones) +
+    '<p class="hint">Gold dots: matching timezone locations.</p></div><div class="timezoneList"><h3>' +
+    zones.length + " matching timezones</h3><ul>" +
+    zones.map((zone) => "<li>" + esc(zone) + "</li>").join("") +
+    "</ul></div></div>";
+  timezoneModal.showModal();
+}
+$("breakdowns").addEventListener("click", (event) => {
+  const row = event.target.closest("[data-offset]");
+  if (row) showTimezoneDetails(row);
+});
+$("breakdowns").addEventListener("keydown", (event) => {
+  if (
+    event.target.matches("[data-offset]") &&
+    (event.key === "Enter" || event.key === " ")
+  ) {
+    event.preventDefault();
+    showTimezoneDetails(event.target);
+  }
+});
+timezoneModal.addEventListener("click", (event) => {
+  const rect = timezoneModal.getBoundingClientRect();
+  if (
+    event.target === timezoneModal &&
+    (event.clientX < rect.left || event.clientX > rect.right ||
+      event.clientY < rect.top || event.clientY > rect.bottom)
+  ) {
+    timezoneModal.close();
+  }
+});
 
 function renderBreakdowns(data) {
   const wrap = $("breakdowns");
@@ -130,7 +193,12 @@ function renderBreakdowns(data) {
     rows.forEach(([k, v], i) => {
       const pct = max ? Math.round((v / max) * 100) : 0;
       const share = total ? Math.round((v / total) * 100) : 0;
-      h += '<div class="barRow' + (i >= BD_TOP ? " extra" : "") + '">' +
+      const details = dim === "app_tz_offset"
+        ? ' data-offset="' + esc(k) +
+          '" tabindex="0" role="button" aria-haspopup="dialog"'
+        : "";
+      h += '<div class="barRow' + (i >= BD_TOP ? " extra" : "") + '"' +
+        details + ">" +
         '<div class="barFill" style="width:' + pct + '%"></div>' +
         '<span class="barLabel">' + esc(k) + "</span>" +
         '<span class="barCount">' + v + '<span class="barPct">' + share +
@@ -404,6 +472,7 @@ function csvCell(v) {
 }
 
 $("exportCsv").onclick = () => {
+  $("moreActions").open = false;
   if (!lastData) return;
   const rows = [["dim", "value", "count"]];
   for (const dim of CSV_DIMS) {

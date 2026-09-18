@@ -2,9 +2,22 @@
    upload subdirectories, so there is no src/css/. */
 
 :root { color-scheme: dark; }
+[data-offset] { cursor: pointer; }
+[data-offset]:focus-visible { outline: 2px solid #88c0d0; outline-offset: 2px; }
+#timezoneModal { width: min(880px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); padding: 24px; background: #161b22; color: #d8dee9; border: 1px solid #30425c; border-radius: 12px; }
+#timezoneModal::backdrop { background: #000a; backdrop-filter: blur(4px); }
+.timezoneModalHead { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.timezoneModalHead h2 { margin: 0; font-size: 18px; }
+.timezoneModalHead button { margin: 0; background: #30425c; }
+.timezoneModalBody { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 20px; }
+.timezoneGlobe { display: block; width: 100%; max-width: 380px; height: auto; margin: auto; }
+.timezoneList { max-height: 420px; overflow: auto; }
+.timezoneList h3 { margin-top: 0; font-size: 14px; }
+.timezoneList ul { padding-left: 20px; font-size: 12px; line-height: 2; }
+@media (max-width: 640px) { .timezoneModalBody { grid-template-columns: 1fr; } .timezoneGlobe { max-width: 240px; } }
 * { box-sizing: border-box; }
 body {
-  margin: 0; padding: 24px;
+  margin: 0; padding: 1em;
   font: 14px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
   background: #0e1116; color: #d8dee9;
 }
@@ -40,6 +53,12 @@ code { color: #ebcb8b; }
 .toolbar input { width: auto; flex: 1 1 150px; min-width: 120px; padding: 5px 8px; font-size: 12px; }
 .toolbar input[type="date"] { flex: 0 0 auto; }
 .toolbar button { margin-top: 0; padding: 6px 14px; }
+.moreActions { position: relative; }
+.moreActions summary { list-style: none; padding: 6px 14px; background: #30425c; color: #fff; border-radius: 5px; cursor: pointer; }
+.moreActions summary::-webkit-details-marker { display: none; }
+#actionsDropdown { position: absolute; right: 0; top: calc(100% + 6px); z-index: 10; padding: 4px; background: #161b22; border: 1px solid #2a323d; border-radius: 5px; box-shadow: 0 8px 24px #0006; }
+#actionsDropdown button { background: transparent; white-space: nowrap; }
+#actionsDropdown button:hover { background: #30425c; }
 .tokenReveal { display: flex; align-items: center; gap: 6px; margin: 0; white-space: nowrap; cursor: pointer; }
 .toolbar .tokenReveal input { width: auto; min-width: 0; flex: none; margin: 0; }
 
@@ -67,12 +86,22 @@ td.n { text-align: right; color: #ebcb8b; }
 .kpiTile.bot .kpiVal { color: #d08770; }
 .toggle { display: flex; align-items: center; gap: 6px; margin: 10px 0 0; color: #9aa5b1; font-size: 12px; cursor: pointer; }
 .toggle input { width: auto; margin: 0; flex: none; }
+.toolbar .toggle { margin: 0; white-space: nowrap; }
+.toolbar .toggle input { min-width: 0; }
 #chartWrap { background: #10151c; border: 1px solid #20262f; border-radius: 6px; padding: 8px; margin-bottom: 16px; }
+#chartPanel { margin-bottom: 16px; }
+#chartPanel summary { color: #88c0d0; cursor: pointer; margin-bottom: 10px; }
+.chartsRow > details { min-width: 0; }
+@media (min-width: 1401px) {
+  .chartsRow { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+}
 #chart { width: 100%; height: 180px; }
 /* day×hour heatmap — sequential single-hue ramp (frost), light→dark = low→high
    against the dark surface. Empty cells stay at surface so "no data" reads as
    absence, not as a low value. */
-#heatmapWrap { background: #10151c; border: 1px solid #20262f; border-radius: 6px; padding: 12px; margin-bottom: 16px; }
+#heatmapPanel { background: #10151c; border: 1px solid #20262f; border-radius: 6px; padding: 12px; margin-bottom: 16px; }
+#heatmapPanel summary { color: #88c0d0; cursor: pointer; }
+#heatmapWrap { margin-top: 10px; }
 .hmGrid { display: grid; grid-template-columns: 34px repeat(24, 1fr); gap: 2px; }
 .hmHead, .hmRowLabel { color: #6b7684; font-size: 10px; line-height: 14px; }
 .hmHead { text-align: center; }
@@ -99,6 +128,18 @@ td.n { text-align: right; color: #ebcb8b; }
 .barPct { color: #6b7684; padding-left: 6px; }
 .bdMore { margin: 2px 0 0; padding: 2px 8px; background: none; border: 0; color: #6b7684; font: inherit; font-size: 11px; cursor: pointer; }
 .bdMore:hover { color: #88c0d0; }
+
+.breakdownViews { display: flex; gap: 6px; margin-bottom: 16px; }
+.breakdownViews button { margin: 0; padding: 6px 12px; background: #1c2330; color: #9aa5b1; font-size: 12px; }
+.breakdownViews button[aria-pressed="true"] { background: #30425c; color: #fff; }
+#breakdowns.cards { columns: 320px 3; column-gap: 16px; }
+.cards .bdGroup { background: #10151c; border: 1px solid #262d38; border-radius: 8px; padding: 14px; margin-bottom: 16px; }
+.cards .dim { margin: 0 0 12px; padding-bottom: 10px; border-bottom: 1px solid #262d38; color: #d8dee9; font-size: 13px; font-weight: 600; }
+.cards .barRow { padding: 9px 0; margin: 0; border-bottom: 1px solid #20262f; border-radius: 0; gap: 12px; }
+.cards .barFill { inset: auto 0 0; height: 2px; background: #3a92a6; }
+.cards .barCount { color: #d8dee9; font-variant-numeric: tabular-nums; }
+.cards .barPct { display: inline-block; min-width: 38px; text-align: right; }
+.cards .bdMore { margin-top: 10px; padding: 4px 0; color: #88c0d0; }
 
 /* --- /help: numbered steps, each with its own check verdict --- */
 .step { border: 1px solid #262d38; border-left-width: 3px; border-radius: 6px; padding: 12px 14px; margin-bottom: 12px; background: #161b22; }

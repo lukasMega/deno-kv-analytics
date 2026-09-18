@@ -59,6 +59,10 @@ const UPLOT_CSS = new URL("./uPlot.min.css", import.meta.url);
 // UI assets shared by /dashboard and /help. Same flat-sibling rule as above; the
 // path a browser requests is the filename, so adding one here is the only step.
 const UI_ASSETS: Record<string, [URL, string]> = {
+  "/timezone-globe.js": [
+    new URL("./timezone-globe.js", import.meta.url),
+    "text/javascript",
+  ],
   "/dashboard.css": [new URL("./dashboard.css", import.meta.url), "text/css"],
   "/dashboard.js": [
     new URL("./dashboard.js", import.meta.url),

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>analytics</title>
-<link rel="stylesheet" href="/dashboard.css?v=4">
+<link rel="stylesheet" href="/dashboard.css?v=timezone-modal">
 </head>
 <body>
   <div class="head">
@@ -18,8 +18,17 @@
       <label class="tokenReveal"><input id="showToken" type="checkbox" aria-controls="token"> Show token</label>
       <input id="site" list="siteList" placeholder="site id" autocomplete="off">
       <datalist id="siteList"></datalist>
+      <label class="toggle" for="showBots">
+        <input type="checkbox" id="showBots"> bots
+      </label>
       <input id="day" type="date" title="single day — overrides the period buttons">
       <button id="load" class="alt">Load</button>
+      <details class="moreActions" id="moreActions">
+        <summary aria-label="More actions">⋯</summary>
+        <div id="actionsDropdown">
+          <button id="exportCsv">Export CSV</button>
+        </div>
+      </details>
     </div>
     <div class="periods" id="periods">
       <button data-period="today">Today</button>
@@ -32,9 +41,6 @@
       <button data-period="lastYear">Last year</button>
       <button data-period="all">All time</button>
     </div>
-    <label class="toggle" for="showBots">
-      <input type="checkbox" id="showBots"> bots
-    </label>
     <div class="msg" id="loadMsg"></div>
 
     <div id="analytics" style="display:none">
@@ -86,14 +92,25 @@
         </div>
         <div class="rangeLabel" id="rangeLabel"></div>
       </div>
-      <div id="chartWrap"><div id="chart"></div></div>
-      <div id="heatmapWrap"></div>
+      <div class="chartsRow">
+      <details id="chartPanel" open>
+        <summary>Traffic over time</summary>
+        <div id="chartWrap"><div id="chart"></div></div>
+      </details>
+      <details id="heatmapPanel" open>
+        <summary>day × hour (UTC)</summary>
+        <div id="heatmapWrap"></div>
+      </details>
+      </div>
       <input id="search" class="search" placeholder="Filter breakdowns…">
-      <button id="exportCsv" class="alt" style="margin-top:2px">Export CSV</button>
-      <div id="breakdowns"></div>
+      <div class="breakdownViews" role="group" aria-label="Breakdown view">
+        <button id="viewCards" aria-pressed="true">Cards</button>
+        <button id="viewBars" aria-pressed="false">Original bars</button>
+      </div>
+      <div id="breakdowns" class="cards"></div>
     </div>
   </section>
 
-<script type="module" src="/dashboard.js?v=5"></script>
+<script type="module" src="/dashboard.js?v=timezone-modal"></script>
 </body>
 </html>
