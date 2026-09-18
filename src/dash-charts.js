@@ -42,12 +42,13 @@ export async function renderChart(series, showBots) {
   }
   el.innerHTML = "";
   if (!series.length) return;
-  // rows are [day, pv, uv, sessions, bot] (older single-metric rows still plot pv)
+  // rows are [day, pv, uv, sessions, bot, app] (older rows default to zero)
   const xs = series.map((r) => Date.parse(r[0] + "T00:00:00Z") / 1000);
   const pv = series.map((r) => r[1] ?? 0);
   const uv = series.map((r) => r[2] ?? 0);
   const ss = series.map((r) => r[3] ?? 0);
   const bots = series.map((r) => r[4] ?? 0);
+  const apps = series.map((r) => r[5] ?? 0);
   const points = { show: series.length < 60 };
   const width = el.parentElement.clientWidth;
   // bot line is added only when opted in — its scale can dwarf pv on a quiet
@@ -56,6 +57,10 @@ export async function renderChart(series, showBots) {
     ? [{ label: "bots", stroke: "#d08770", width: 1, dash: [4, 4], points }]
     : [];
   const botData = showBots ? [bots] : [];
+  const appSeries = apps.some((v) => v > 0)
+    ? [{ label: "app pings", stroke: "#b48ead", width: 2, points }]
+    : [];
+  const appData = appSeries.length ? [apps] : [];
   chart = new uPlot(
     {
       width,
@@ -88,9 +93,10 @@ export async function renderChart(series, showBots) {
         { label: "unique visitors", stroke: "#a3be8c", width: 2, points },
         { label: "sessions", stroke: "#ebcb8b", width: 2, points },
         ...botSeries,
+        ...appSeries,
       ],
     },
-    [xs, pv, uv, ss, ...botData],
+    [xs, pv, uv, ss, ...botData, ...appData],
     el,
   );
 }

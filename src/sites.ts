@@ -20,7 +20,7 @@ export const normalizeHost = (h: string) =>
 /**
  * Parse the `SITES` env var:
  *
- *   SITES="deckbridge:stats.deckbridge.app,acme:stats.acme.dev,scratch"
+ *   SITES="demo:stats.demo.app,acme:stats.acme.dev,scratch"
  *
  * `id:host` maps a custom domain to a site (preferred — the host is unspoofable
  * by page JS, so no client param is trusted). A bare `id` is allowed but can then

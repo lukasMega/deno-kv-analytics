@@ -3,18 +3,19 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>docs-analytics</title>
-<link rel="stylesheet" href="/dashboard.css">
+<title>analytics</title>
+<link rel="stylesheet" href="/dashboard.css?v=4">
 </head>
 <body>
   <div class="head">
-    <h1>docs-analytics</h1>
+    <h1>analytics</h1>
     <span class="links"><a href="/help">help &amp; setup</a></span>
   </div>
 
   <section>
     <div class="toolbar">
-      <input id="token" value="devtoken" placeholder="token" autocomplete="off">
+      <input id="token" type="password" value="devtoken" placeholder="token" aria-label="Token" autocomplete="off">
+      <label class="tokenReveal"><input id="showToken" type="checkbox" aria-controls="token"> Show token</label>
       <input id="site" list="siteList" placeholder="site id" autocomplete="off">
       <datalist id="siteList"></datalist>
       <input id="day" type="date" title="single day — overrides the period buttons">
@@ -78,6 +79,11 @@
           <div class="kpiLabel">bot visits</div>
           <div class="kpiDelta" id="kpiBotDelta"></div>
         </div>
+        <div class="kpiTile" id="kpiAppTile" style="display:none" title="Desktop-app pings (GET /a). One per install per UTC day: over a single day this is a distinct-install count, over a longer range it is the sum of those days. Shares no counter with pageviews.">
+          <div class="kpiVal" id="kpiApp">0</div>
+          <div class="kpiLabel">app pings</div>
+          <div class="kpiDelta" id="kpiAppDelta"></div>
+        </div>
         <div class="rangeLabel" id="rangeLabel"></div>
       </div>
       <div id="chartWrap"><div id="chart"></div></div>
@@ -88,6 +94,6 @@
     </div>
   </section>
 
-<script type="module" src="/dashboard.js"></script>
+<script type="module" src="/dashboard.js?v=5"></script>
 </body>
 </html>

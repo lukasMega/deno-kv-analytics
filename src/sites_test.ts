@@ -37,10 +37,10 @@ const stats = (host: string, qs: string, token: string) =>
 
 Deno.test("loadSites parses id:host pairs and bare ids", () => {
   const s = loadSites(
-    env("deckbridge:stats.deckbridge.app, scratch ,acme:WWW.Acme.Dev"),
+    env("demo:stats.demo.app, scratch ,acme:WWW.Acme.Dev"),
   );
-  assertEquals([...s.keys()], ["deckbridge", "scratch", "acme"]);
-  assertEquals(s.get("deckbridge")!.host, "stats.deckbridge.app");
+  assertEquals([...s.keys()], ["demo", "scratch", "acme"]);
+  assertEquals(s.get("demo")!.host, "stats.demo.app");
   assertEquals(s.get("scratch")!.host, null); // bare id → selectable only via ?s=
   assertEquals(s.get("acme")!.host, "acme.dev"); // lowercased, www stripped
   assertEquals(loadSites(env(undefined)).size, 0);

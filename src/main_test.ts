@@ -131,7 +131,7 @@ Deno.test("series carries a per-day bot total alongside the human metrics", asyn
   const stats = await (await h(statsReq(`series=1&from=${day}&to=${day}`)))
     .json();
   // [day, pv, uv, sessions, bot] — bot is ua + synthetic, and pv excludes both
-  assertEquals(stats.series, [[day, 1, 1, 1, 2]]);
+  assertEquals(stats.series, [[day, 1, 1, 1, 2, 0]]);
   kv.close();
 });
 
