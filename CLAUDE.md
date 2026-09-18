@@ -24,6 +24,7 @@ deno task demo           # seeded in-memory UI, touches no KV on disk
 deno task test           # main_test sites_test kv_test badge_test e2e_test
 deno task build-client   # src/client/beacon.ts -> src/s.js (minified IIFE)
 deno task check-size     # fails if src/s.js > 4096 bytes
+deno task sizes          # scripts/measure-sizes.ts -> scripts/.sizes.csv (s.js raw + gzip)
 deno fmt && deno lint
 deno test --allow-env --filter "prune walks every site" src/sites_test.ts
 ```

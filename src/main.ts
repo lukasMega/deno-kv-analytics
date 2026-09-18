@@ -15,6 +15,7 @@
 import { isbot } from "isbot";
 import { badgeSvg, formatCount, safeColor, safeLabel } from "./badge.ts";
 import { botKind, clamp, country, parseUA, refGroup } from "./classify.ts";
+import { writeAppPing } from "./app_ingest.ts";
 import { openKv } from "./kv.ts";
 import {
   badgeSites,
@@ -244,6 +245,12 @@ export function createHandler(kv: Deno.Kv, sites: Map<string, Site>) {
       return gif();
     }
 
+    // --- desktop-app ingest — see app_ingest.ts ---
+    if (req.method === "GET" && url.pathname === "/a") {
+      if (site) await writeAppPing(kv, site, today(), req, url);
+      return gif();
+    }
+
     // --- site list (admin only; powers the dashboard's site picker) ---
     if (req.method === "GET" && url.pathname === "/sites") {
       if (!isAdmin(statsToken(req, url))) {
@@ -276,11 +283,11 @@ export function createHandler(kv: Deno.Kv, sites: Map<string, Site>) {
         );
 
         const out: Record<string, Record<string, number>> = {};
-        // series rows: [day, pv, uv, sessions, bot] — powers the multi-line
+        // series rows: [day, pv, uv, sessions, bot, app] — powers the multi-line
         // trend. `bot` is the per-day total of the `bot` dim (ua + synthetic);
         // it rides the same row so the dashboard's opt-in bot line needs no
         // second request. Human metrics stay bot-free — bot hits never write pv.
-        const series: [string, number, number, number, number][] = [];
+        const series: [string, number, number, number, number, number][] = [];
         for (let i = 0; i < days.length; i++) {
           const part = parts[i];
           for (const dim in part) {
@@ -297,6 +304,7 @@ export function createHandler(kv: Deno.Kv, sites: Map<string, Site>) {
               part.uv?._ ?? 0,
               part.sessions?._ ?? 0,
               bots,
+              part.app?._ ?? 0,
             ]);
           }
         }

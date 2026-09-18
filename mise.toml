@@ -50,6 +50,10 @@ run = [
   "deno task check-size",
 ]
 
+[tasks.sizes]
+description = "Measure deployed + per-visitor byte cost into scripts/.sizes.csv"
+run = "deno task sizes"
+
 [tasks.docs]
 # The Docusaurus site in website/ is the one Node-toolchain corner of an
 # otherwise Deno-only repo; npm comes from the system, not from [tools], so the

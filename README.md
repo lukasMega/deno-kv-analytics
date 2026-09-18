@@ -2,6 +2,14 @@
 
 [![views](https://tst.lukasmega.deno.net/badge?site=deno-kv-analytics&total=1&label=docs%20views%2030d%20%2B%20all)](https://lukasmega.github.io/deno-kv-analytics/badge)
 
+A very simple analytics tool: one script tag, one dashboard page. It counts
+pageviews and a handful of dimensions — not sessions, funnels or user journeys —
+which is exactly the level of insight a small site usually wants. Good fit for a
+**GitHub Pages site** (`*.github.io`), a docs site or a personal blog: static
+hosting gives you no server-side logs at all, and this fills that gap without a
+cookie banner or a third-party account. This repo's own docs site is the live
+example.
+
 Cookieless pageview collector on Deno KV. No cookies, no IP storage, no
 fingerprint → **no consent banner**. Stores daily aggregate counts. Runs on the
 **new** Deno Deploy ([`console.deno.com`](https://console.deno.com)).
@@ -22,9 +30,8 @@ Add one tag to a page and you are collecting:
 [Design notes](https://lukasmega.github.io/deno-kv-analytics/design) ·
 [Privacy](https://lukasmega.github.io/deno-kv-analytics/privacy)
 
-
-> **⚠️ Experimental project:** this is just simple, not production ready project. The author does not plan to add
-> support for more features.
+> **⚠️ Experimental project:** this is just simple, not production ready
+> project. The author does not plan to add support for more features.
 
 ## See it
 
@@ -93,8 +100,9 @@ label configurable:
 ```bash
 deno task dev            # watch on :8123 (builds the beacon first)
 deno task demo           # seeded UI, in-memory KV
-deno task test           # main / sites / kv / e2e
+deno task test           # main / app-ingest / sites / kv / badge / migrate / e2e
 deno task build-client   # src/client/beacon.ts -> src/s.js
+deno task sizes          # measure byte cost -> scripts/.sizes.csv
 deno task admin -- list | size | usage --site <id> | delete --site <id> --yes
 ```
 
@@ -129,6 +137,23 @@ every site on the deployment.
 The schema, the write budget, the bot handling, the behavioral probe and the
 Deno Deploy layout rules all have one home:
 **[Design notes](https://lukasmega.github.io/deno-kv-analytics/design)**.
+
+## How big is it
+
+```bash
+deno task sizes   # rebuilds the beacon, writes scripts/.sizes.csv
+```
+
+Measured, not estimated — [scripts/.sizes.csv](scripts/.sizes.csv) is the
+output.
+
+| shipped to the visitor | raw     | gzip        |
+| ---------------------- | ------- | ----------- |
+| client bundle (`s.js`) | 2.72 kB | **1.37 kB** |
+
+That is the whole cost of tracking a page: 1.37 kB gzip, once, cached, plus a
+43-byte gif per pageview. The collector, the dashboard and the charts never
+reach a visitor. `deno task check-size` fails CI if the bundle passes 4 kB.
 
 ## Privacy
 

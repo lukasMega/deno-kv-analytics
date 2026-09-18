@@ -12,7 +12,7 @@ import {
   statsFetch,
   todayIso,
 } from "/da-common.js";
-import { renderChart, renderHeatmap } from "/dash-charts.js";
+import { renderChart, renderHeatmap } from "/dash-charts.js?v=2";
 
 // --- period math (UTC, matches server) ---
 const LAUNCH = "2026-06-23";
@@ -93,6 +93,11 @@ const DIM_ORDER = [
   "event_target",
   // traffic-quality dims last: `hi` (human-interaction latency buckets)
   "hi",
+  // desktop-app ping dims (app_ingest.ts). Absent on a browser-only site, and
+  // renderBreakdowns skips a missing dim, so listing them costs nothing there.
+  "app_os",
+  "app_version",
+  "app_device",
 ];
 // bot dims are rendered only with the toggle on: `bot` (how a bot was caught:
 // ua / synthetic) and `bot_kind` (which isbot pattern fired — this is what
@@ -100,7 +105,7 @@ const DIM_ORDER = [
 // an export shouldn't silently depend on a UI checkbox.
 const BOT_DIMS = ["bot", "bot_kind"];
 // `dowhour` renders as the heatmap, not a bar list, but still belongs in an export
-const CSV_DIMS = [...DIM_ORDER, ...BOT_DIMS, "dowhour"];
+const CSV_DIMS = [...DIM_ORDER, ...BOT_DIMS, "app", "dowhour"];
 
 // rows past this are rendered but collapsed behind the per-dim "show all"
 // toggle — high-cardinality dims (path, ref, event_target) otherwise dominate
@@ -215,6 +220,7 @@ const DELTA_IDS = [
   "kpiEngagementDelta",
   "kpiHumanDelta",
   "kpiBotDelta",
+  "kpiAppDelta",
 ];
 
 // total across every value of a dim (the `hi` dim is split into latency buckets,
@@ -251,6 +257,13 @@ function renderKpis(data, prior) {
   const bots = dimTotal(data.bot);
   $("kpiBotTile").style.display = showBots ? "" : "none";
   $("kpiBot").textContent = bots;
+  // desktop-app pings (app_ingest.ts): one per install per UTC day, so over a
+  // single day this is a distinct-install count and over a range it is not.
+  // Own tile, hidden on a site that has never sent one — it shares no counter
+  // with pv/uv/sessions.
+  const apps = dimTotal(data.app);
+  $("kpiAppTile").style.display = apps || dimTotal(prior?.app) ? "" : "none";
+  $("kpiApp").textContent = apps;
 
   if (!prior) {
     for (const id of DELTA_IDS) {
@@ -275,6 +288,7 @@ function renderKpis(data, prior) {
   setDelta("kpiEngagementDelta", engagementPct, pEngagementPct);
   setDelta("kpiHumanDelta", humanPct, pHumanPct);
   setDelta("kpiBotDelta", bots, dimTotal(prior.bot));
+  setDelta("kpiAppDelta", apps, dimTotal(prior.app));
 }
 
 let lastRender = null;
@@ -366,6 +380,9 @@ async function loadStats() {
   }
 }
 $("load").onclick = loadStats;
+$("showToken").onchange = () => {
+  $("token").type = $("showToken").checked ? "text" : "password";
+};
 
 $("showBots").checked = showBots;
 $("showBots").onchange = () => {
