@@ -33,7 +33,7 @@
     "admin": "KV_PATH=local.db deno run -A src/admin.ts"
   },
   "imports": {
-    "isbot": "npm:isbot@5",
+    "isbot": "npm:isbot@^5.2.2",
     "@std/assert": "jsr:@std/assert@1",
     "@std/cli": "jsr:@std/cli@1"
   },
