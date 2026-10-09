@@ -69,6 +69,13 @@ An **event** (`d.ev` set) writes only `event` + `event_target` and does **not**
 increment `pv` — except the two behavioral-probe verdicts (`ev=hi`, `ev=bot`),
 which the server routes to their own dims.
 
+A **desktop-app ping** (`GET /a`) always writes `app`. Valid payload values may
+also write `app_os`, `app_os_version`, `app_tz_offset`, `app_version`, and up to
+eight `app_device` counters. `country` comes from a CDN header when available,
+otherwise from the payload's locale region. App pings never write pageview,
+visitor, session, or bot dims. See the complete
+[payload table](./dashboard.md#desktop-app-payload-a).
+
 Every stored value is clamped to **128 chars**, so a hostile or buggy client
 cannot inflate KV cost. Unknown fields (like `z`) are ignored.
 
@@ -85,11 +92,12 @@ The canonical numbers — every other page links here rather than restating them
 The Deno KV free tier is roughly **300K write units/month**. A pageview writes
 12 counters, one write unit each:
 
-| traffic                           | cost     | budget                               |
-| --------------------------------- | -------- | ------------------------------------ |
-| pageview, no interaction          | 12 units | ≈ **25K pv/mo**                      |
-| pageview + behavioral probe fires | 13 units | ≈ **23K pv/mo**                      |
-| bot hit                           | 2 units  | does not compete — never writes `pv` |
+| traffic                           | cost                         | budget                               |
+| --------------------------------- | ---------------------------- | ------------------------------------ |
+| pageview, no interaction          | 12 units                     | ≈ **25K pv/mo**                      |
+| pageview + behavioral probe fires | 13 units                     | ≈ **23K pv/mo**                      |
+| bot hit                           | 2 units                      | does not compete — never writes `pv` |
+| desktop-app ping                  | 1–7 units normally; up to 14 | `app` plus valid optional dims       |
 
 Add **1 unit** to each pageview row for a site listed in `BADGE_SITES` (the
 all-time counter): 13 → ≈23K pv/mo, 14 → ≈21K pv/mo. Sites without a badge are
@@ -236,8 +244,10 @@ Deno Deploy bundles sibling `new URL(…, import.meta.url)` files but **skips
 subdirectories**, and ignores `with { type: "text" }` at runtime. So every
 runtime asset must sit **flat** beside the entrypoint `src/main.ts` and be read
 with `Deno.readTextFile`: `s.js`, the uPlot pair, and every UI file
-(`dashboard.html`, `help.html`, `dashboard.css`, `dashboard.js`,
-`dash-charts.js`, `da-common.js`, `help.js`).
+(`dashboard.html`, `help.html`, `dashboard.css`, `dashboard.js`, `da-common.js`,
+`help.js`). Dashboard TypeScript Preact sources live under `src/dashboard/`;
+flat outputs remain committed for Deploy. Help remains plain JavaScript; no
+React compatibility layer is used by dashboard.
 
 That is why the vendored uPlot sits flat in `src/` rather than in `vendor/`, and
 why the entrypoint is `src/main.ts` rather than a root `main.ts`.
@@ -286,19 +296,20 @@ build tooling that never ships.
 <details>
 <summary><b>File-by-file</b></summary>
 
-| file                              | what                                                                             |
-| --------------------------------- | -------------------------------------------------------------------------------- |
-| `src/main.ts`                     | routing, ingest, KV reads — also the Deploy entrypoint                           |
-| `src/classify.ts`                 | request → dimension values: `parseUA`, `botKind`, `refGroup`, `country`, `clamp` |
-| `src/sites.ts`                    | site allowlist, Host→site resolution, per-site tokens                            |
-| `src/kv.ts`                       | `openKv()` — which database, plus `taskArgs()`                                   |
-| `src/client/beacon.ts`            | browser beacon → built to `src/s.js`, served at `/s.js`                          |
-| `src/admin.ts`                    | operator CLI: list / size / usage / delete                                       |
-| `src/migrate.ts`                  | one-shot rekey of pre-multi-site data                                            |
-| `src/dashboard.html` `.js` `.css` | the UI; `src/dash-charts.js` holds trend chart + heatmap                         |
-| `src/help.html` / `src/help.js`   | guided setup, one live check per step                                            |
-| `src/da-common.js`                | token/site controls + `/stats` fetch, shared by both pages                       |
-| `src/uPlot.*`                     | vendored uPlot js+css (flat sibling, **not** a `vendor/` dir)                    |
-| `src/*_test.ts`                   | round-trip tests over in-memory KV (`deno task test`)                            |
+| file                                     | what                                                                             |
+| ---------------------------------------- | -------------------------------------------------------------------------------- |
+| `src/main.ts`                            | routing, ingest, KV reads — also the Deploy entrypoint                           |
+| `src/classify.ts`                        | request → dimension values: `parseUA`, `botKind`, `refGroup`, `country`, `clamp` |
+| `src/sites.ts`                           | site allowlist, Host→site resolution, per-site tokens                            |
+| `src/kv.ts`                              | `openKv()` — which database, plus `taskArgs()`                                   |
+| `src/client/beacon.ts`                   | browser beacon → built to `src/s.js`, served at `/s.js`                          |
+| `src/app_ingest.ts`                      | desktop-app `/a` payload validation and counter writes                           |
+| `src/admin.ts`                           | operator CLI: list / size / usage / delete                                       |
+| `src/migrate.ts`                         | one-shot rekey of pre-multi-site data                                            |
+| `src/dashboard/` + flat dashboard assets | Preact TypeScript source; committed flat bundle powers dashboard                 |
+| `src/help.html` / `src/help.js`          | guided setup, one live check per step                                            |
+| `src/da-common.js`                       | token/site controls + `/stats` fetch, shared by both pages                       |
+| `src/uPlot.*`                            | vendored uPlot js+css (flat sibling, **not** a `vendor/` dir)                    |
+| `src/*_test.ts`                          | round-trip tests over in-memory KV (`deno task test`)                            |
 
 </details>

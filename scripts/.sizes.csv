@@ -1,0 +1,2 @@
+artifact,path,bytes,kb,gzip_bytes,gzip_kb
+client-bundle,src/s.js,2786,2.72,1399,1.37

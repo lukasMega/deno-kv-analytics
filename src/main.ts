@@ -68,10 +68,6 @@ const UI_ASSETS: Record<string, [URL, string]> = {
     new URL("./dashboard.js", import.meta.url),
     "text/javascript",
   ],
-  "/dash-charts.js": [
-    new URL("./dash-charts.js", import.meta.url),
-    "text/javascript",
-  ],
   "/da-common.js": [
     new URL("./da-common.js", import.meta.url),
     "text/javascript",

@@ -57,8 +57,8 @@ Deno.test("e2e: beacon → KV → /stats, and every served asset resolves", asyn
         // piece it pulls in needs the same flat-sibling guarantee
         ["/dashboard.css", "text/css"],
         ["/dashboard.js", "text/javascript"],
-        ["/dash-charts.js", "text/javascript"],
         ["/da-common.js", "text/javascript"],
+        ["/timezone-globe.js", "text/javascript"],
         ["/help.js", "text/javascript"],
       ]
     ) {
@@ -70,7 +70,7 @@ Deno.test("e2e: beacon → KV → /stats, and every served asset resolves", asyn
 
     const dash = await fetch(base + "/dashboard");
     assertEquals(dash.status, 200);
-    assertStringIncludes(await dash.text(), 'id="analytics"');
+    assertStringIncludes(await dash.text(), 'id="app"');
 
     const help = await fetch(base + "/help");
     assertEquals(help.status, 200);

@@ -4,113 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>analytics</title>
-<link rel="stylesheet" href="/dashboard.css?v=timezone-modal">
+<link rel="stylesheet" href="/dashboard.css?v=loading-progress">
 </head>
 <body>
-  <div class="head">
-    <h1>analytics</h1>
-    <span class="links"><a href="/help">help &amp; setup</a></span>
-  </div>
-
-  <section>
-    <div class="toolbar">
-      <input id="token" type="password" value="devtoken" placeholder="token" aria-label="Token" autocomplete="off">
-      <label class="tokenReveal"><input id="showToken" type="checkbox" aria-controls="token"> Show token</label>
-      <input id="site" list="siteList" placeholder="site id" autocomplete="off">
-      <datalist id="siteList"></datalist>
-      <label class="toggle" for="showBots">
-        <input type="checkbox" id="showBots"> bots
-      </label>
-      <input id="day" type="date" title="single day — overrides the period buttons">
-      <button id="load" class="alt">Load</button>
-      <details class="moreActions" id="moreActions">
-        <summary aria-label="More actions">⋯</summary>
-        <div id="actionsDropdown">
-          <button id="exportCsv">Export CSV</button>
-        </div>
-      </details>
-    </div>
-    <div class="periods" id="periods">
-      <button data-period="today">Today</button>
-      <button data-period="7d">Last 7 days</button>
-      <button data-period="14d">Last 14 days</button>
-      <button data-period="30d">Last 30 days</button>
-      <button data-period="thisMonth">This month</button>
-      <button data-period="lastMonth">Last month</button>
-      <button data-period="thisYear">This year</button>
-      <button data-period="lastYear">Last year</button>
-      <button data-period="all">All time</button>
-    </div>
-    <div class="msg" id="loadMsg"></div>
-
-    <div id="analytics" style="display:none">
-      <div class="kpiRow">
-        <div class="kpiTile">
-          <div class="kpiVal" id="kpiPv">0</div>
-          <div class="kpiLabel">pageviews</div>
-          <div class="kpiDelta" id="kpiPvDelta"></div>
-        </div>
-        <div class="kpiTile">
-          <div class="kpiVal" id="kpiUv">0</div>
-          <div class="kpiLabel">unique visitors</div>
-          <div class="kpiDelta" id="kpiUvDelta"></div>
-        </div>
-        <div class="kpiTile">
-          <div class="kpiVal" id="kpiSessions">0</div>
-          <div class="kpiLabel">sessions</div>
-          <div class="kpiDelta" id="kpiSessionsDelta"></div>
-        </div>
-        <div class="kpiTile">
-          <div class="kpiVal" id="kpiViewsPerVisit">0</div>
-          <div class="kpiLabel">views / visit</div>
-          <div class="kpiDelta" id="kpiViewsPerVisitDelta"></div>
-        </div>
-        <div class="kpiTile">
-          <div class="kpiVal" id="kpiBounce">0%</div>
-          <div class="kpiLabel">bounce rate</div>
-          <div class="kpiDelta" id="kpiBounceDelta"></div>
-        </div>
-        <div class="kpiTile">
-          <div class="kpiVal" id="kpiEngagement">0%</div>
-          <div class="kpiLabel">engagement rate</div>
-          <div class="kpiDelta" id="kpiEngagementDelta"></div>
-        </div>
-        <div class="kpiTile" title="Share of pageviews where the behavioral probe saw real (isTrusted) input. A low value across a whole range suggests automated traffic; a single pageview without interaction is just a bounce.">
-          <div class="kpiVal" id="kpiHuman">0%</div>
-          <div class="kpiLabel">human interaction</div>
-          <div class="kpiDelta" id="kpiHumanDelta"></div>
-        </div>
-        <div class="kpiTile bot" id="kpiBotTile" style="display:none" title="Hits whose User-Agent matched isbot, plus untrusted-event (synthetic) verdicts. Counted separately — bot hits never write `pv`, so no other KPI on this row includes them.">
-          <div class="kpiVal" id="kpiBot">0</div>
-          <div class="kpiLabel">bot visits</div>
-          <div class="kpiDelta" id="kpiBotDelta"></div>
-        </div>
-        <div class="kpiTile" id="kpiAppTile" style="display:none" title="Desktop-app pings (GET /a). One per install per UTC day: over a single day this is a distinct-install count, over a longer range it is the sum of those days. Shares no counter with pageviews.">
-          <div class="kpiVal" id="kpiApp">0</div>
-          <div class="kpiLabel">app pings</div>
-          <div class="kpiDelta" id="kpiAppDelta"></div>
-        </div>
-        <div class="rangeLabel" id="rangeLabel"></div>
-      </div>
-      <div class="chartsRow">
-      <details id="chartPanel" open>
-        <summary>Traffic over time</summary>
-        <div id="chartWrap"><div id="chart"></div></div>
-      </details>
-      <details id="heatmapPanel" open>
-        <summary>day × hour (UTC)</summary>
-        <div id="heatmapWrap"></div>
-      </details>
-      </div>
-      <input id="search" class="search" placeholder="Filter breakdowns…">
-      <div class="breakdownViews" role="group" aria-label="Breakdown view">
-        <button id="viewCards" aria-pressed="true">Cards</button>
-        <button id="viewBars" aria-pressed="false">Original bars</button>
-      </div>
-      <div id="breakdowns" class="cards"></div>
-    </div>
-  </section>
-
-<script type="module" src="/dashboard.js?v=timezone-modal"></script>
+  <div id="loadProgress" class="loadProgress" role="progressbar" aria-label="Loading page"></div>
+  <div id="app" aria-busy="true"></div>
+<script type="module" src="/dashboard.js?v=loading-progress">
+</script>
 </body>
 </html>
