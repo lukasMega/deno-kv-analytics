@@ -14,7 +14,10 @@ export interface SurveySummary {
   };
   cross: string;
   groups: Record<string, { total: number; counts: Counts }>;
-  comments: { day: string; c: string }[];
+  comments: (
+    & { day: string }
+    & Pick<SurveyPayload, "c" | "useForOther" | "wantOther">
+  )[];
 }
 
 function add(counts: Counts, answers: SurveyPayload["a"]) {
@@ -109,8 +112,13 @@ export async function readSurveys(
       group.total++;
       add(group.counts, payload.a);
     }
-    if (payload.c) {
-      summary.comments.push({ day: String(row.key[3]), c: payload.c });
+    if (payload.c || payload.useForOther || payload.wantOther) {
+      summary.comments.push({
+        day: String(row.key[3]),
+        ...(payload.c ? { c: payload.c } : {}),
+        ...(payload.useForOther ? { useForOther: payload.useForOther } : {}),
+        ...(payload.wantOther ? { wantOther: payload.wantOther } : {}),
+      });
     }
   }
   if (summary.nps.answered) {

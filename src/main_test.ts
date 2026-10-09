@@ -245,3 +245,19 @@ Deno.test("eq is length-safe constant-ish compare", () => {
   assertEquals(eq("abc", "abd"), false);
   assertEquals(eq("abc", "ab"), false);
 });
+
+Deno.test("trailing slash is merged into the same path, old rows included", async () => {
+  const { kv, h } = await fixture();
+  await h(beacon(encode({ p: "/getting-started" })));
+  await h(beacon(encode({ p: "/getting-started/" })));
+  await h(beacon(encode({ p: "/" })));
+  // a row written before normalization existed
+  const day = new Date().toISOString().slice(0, 10);
+  await kv.atomic().sum(["c", "test", day, "path", "/getting-started/"], 1n)
+    .commit();
+  const stats = await (await h(statsReq(""))).json();
+  assertEquals(stats.path["/getting-started"], 3);
+  assertEquals(stats.path["/getting-started/"], undefined);
+  assertEquals(stats.path["/"], 1);
+  kv.close();
+});
