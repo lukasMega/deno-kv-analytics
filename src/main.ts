@@ -16,6 +16,8 @@ import { isbot } from "isbot";
 import { badgeSvg, formatCount, safeColor, safeLabel } from "./badge.ts";
 import { botKind, clamp, country, parseUA, refGroup } from "./classify.ts";
 import { writeAppPing } from "./app_ingest.ts";
+import { createSurveyLimiter, ingestSurvey } from "./survey_ingest.ts";
+import { readSurveys } from "./survey_reads.ts";
 import { openKv } from "./kv.ts";
 import {
   badgeSites,
@@ -131,8 +133,12 @@ async function asset(u: URL, type: string, maxAge = 86400): Promise<Response> {
 
 export function createHandler(kv: Deno.Kv, sites: Map<string, Site>) {
   const byHost = hostIndex(sites);
+  const surveyLimit = createSurveyLimiter();
 
-  return async (req: Request): Promise<Response> => {
+  return async (
+    req: Request,
+    info?: { remoteAddr: { hostname: string } },
+  ): Promise<Response> => {
     const url = new URL(req.url);
     const site = resolveSite(url, sites, byHost);
 
@@ -251,6 +257,18 @@ export function createHandler(kv: Deno.Kv, sites: Map<string, Site>) {
       return gif();
     }
 
+    // --- explicit survey submissions ---
+    if (req.method === "POST" && url.pathname === "/s") {
+      // Trust the connection address, never client-controlled forwarding headers.
+      return await ingestSurvey(
+        kv,
+        site,
+        req,
+        info?.remoteAddr.hostname ?? "unknown",
+        surveyLimit,
+      );
+    }
+
     // --- site list (admin only; powers the dashboard's site picker) ---
     if (req.method === "GET" && url.pathname === "/sites") {
       if (!isAdmin(statsToken(req, url))) {
@@ -260,7 +278,10 @@ export function createHandler(kv: Deno.Kv, sites: Map<string, Site>) {
     }
 
     // --- dashboard JSON ---
-    if (req.method === "GET" && url.pathname === "/stats") {
+    if (
+      req.method === "GET" &&
+      ["/stats", "/surveys", "/surveys/export"].includes(url.pathname)
+    ) {
       const token = statsToken(req, url);
       // The per-site token is checked against the site that was *resolved* for
       // this request — never against the set of all configured tokens. Otherwise
@@ -270,6 +291,7 @@ export function createHandler(kv: Deno.Kv, sites: Map<string, Site>) {
       if (!site || !ok) {
         return new Response("unauthorized", { status: 401 });
       }
+      if (url.pathname !== "/stats") return await readSurveys(kv, site, url);
 
       const from = url.searchParams.get("from");
       const to = url.searchParams.get("to");

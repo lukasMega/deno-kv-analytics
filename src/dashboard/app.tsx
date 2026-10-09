@@ -10,9 +10,12 @@ import { KpiGrid } from "./components/kpi-grid.tsx";
 import { MapDialogs } from "./components/map-dialogs.tsx";
 import { Toolbar } from "./components/toolbar.tsx";
 import { TrafficChart } from "./components/traffic-chart.tsx";
+import { SurveyPanel } from "./components/survey-panel.tsx";
 import type { Period, Site } from "./types.ts";
 
 export function App() {
+  const [tab, setTab] = useState("traffic");
+  const [surveyRefresh, setSurveyRefresh] = useState(0);
   const [token, setToken] = usePersistedState("da_token", "devtoken");
   const [site, setSite] = usePersistedState("da_site", "");
   const [showBots, setShowBots] = useState(() =>
@@ -106,7 +109,27 @@ export function App() {
         </span>
       </div>
       <section>
+        <div class="periods" role="group" aria-label="Dashboard view">
+          <button
+            type="button"
+            class={tab === "traffic" ? "active" : ""}
+            aria-pressed={tab === "traffic"}
+            onClick={() => setTab("traffic")}
+          >
+            Traffic
+          </button>
+          <button
+            id="surveyTab"
+            type="button"
+            class={tab === "surveys" ? "active" : ""}
+            aria-pressed={tab === "surveys"}
+            onClick={() => setTab("surveys")}
+          >
+            Surveys
+          </button>
+        </div>
         <Toolbar
+          survey={tab === "surveys"}
           token={token}
           site={site}
           sites={sites}
@@ -129,22 +152,35 @@ export function App() {
             setDay("");
             setPeriod(value);
           }}
-          onLoad={stats.load}
+          onLoad={() =>
+            tab === "surveys"
+              ? setSurveyRefresh((old) => old + 1)
+              : stats.load()}
           onExport={exportCsv}
         />
-        <div
-          class={`msg ${
-            stats.state === "error" || stats.state === "unauthorized"
-              ? "err"
-              : stats.state === "ready"
-              ? "ok"
-              : ""
-          }`}
-          id="loadMsg"
-        >
-          {status}
-        </div>
-        {stats.data && (
+        {tab === "traffic" && (
+          <div
+            class={`msg ${
+              stats.state === "error" || stats.state === "unauthorized"
+                ? "err"
+                : stats.state === "ready"
+                ? "ok"
+                : ""
+            }`}
+            id="loadMsg"
+          >
+            {status}
+          </div>
+        )}
+        {tab === "surveys" && (
+          <SurveyPanel
+            token={token}
+            site={site}
+            range={range}
+            refresh={surveyRefresh}
+          />
+        )}
+        {tab === "traffic" && stats.data && (
           <div id="analytics">
             <KpiGrid
               data={stats.data}
