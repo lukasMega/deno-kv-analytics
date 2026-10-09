@@ -17,6 +17,11 @@ export const clamp = (
   s: string,
 ) => (s.length > MAXLEN ? s.slice(0, MAXLEN) : s);
 
+// `/a` and `/a/` are the same page; counting them apart splits one row in two.
+// Root stays "/". Applied at ingest and again on read (see `readPrefix`) because
+// rows written before this existed still carry the trailing slash.
+export const normPath = (p: string) => p.replace(/\/+$/, "") || "/";
+
 export function parseUA(
   ua: string,
 ): { browser: string; os: string; device: string } {

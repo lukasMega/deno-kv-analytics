@@ -253,7 +253,17 @@ export function SurveyPanel({ token, site, range, refresh }: {
           {data.comments.map((comment, index) => (
             <div class="surveyComment" key={index}>
               <small>{comment.day} UTC</small>
-              <p>{comment.c}</p>
+              {comment.useForOther && (
+                <p>
+                  <strong>Other use:</strong> {comment.useForOther}
+                </p>
+              )}
+              {comment.wantOther && (
+                <p>
+                  <strong>Other request:</strong> {comment.wantOther}
+                </p>
+              )}
+              {comment.c && <p>{comment.c}</p>}
             </div>
           ))}
         </>

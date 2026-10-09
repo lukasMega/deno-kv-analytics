@@ -3,7 +3,7 @@ const ID = /^[a-z0-9-]{1,32}$/;
 const MODEL_ID = /^[a-z0-9][a-z0-9_-]{0,31}$/;
 const SEMVER = /^\d+\.\d+\.\d+$/;
 const OS_VERSION = /^[a-z][a-z0-9_]{0,15}(-[a-z0-9.]{1,12})?$/;
-const MAX_BODY = 2048;
+const MAX_BODY = 4096;
 const HOUR = 60 * 60 * 1000;
 
 export interface SurveyPayload {
@@ -14,6 +14,8 @@ export interface SurveyPayload {
   dv?: string;
   a: Record<string, string | string[]>;
   c?: string;
+  useForOther?: string;
+  wantOther?: string;
 }
 
 function object(value: unknown): value is Record<string, unknown> {
@@ -62,6 +64,21 @@ export function validateSurvey(raw: unknown): SurveyPayload | null {
   if (typeof raw.c === "string") {
     const comment = raw.c.trim().slice(0, 280);
     if (comment) payload.c = comment;
+  }
+  if (
+    Array.isArray(answers["use-for"]) &&
+    answers["use-for"].includes("other") &&
+    typeof raw.useForOther === "string"
+  ) {
+    const detail = raw.useForOther.trim().slice(0, 300);
+    if (detail) payload.useForOther = detail;
+  }
+  if (
+    Array.isArray(answers.want) && answers.want.includes("other") &&
+    typeof raw.wantOther === "string"
+  ) {
+    const request = raw.wantOther.trim().slice(0, 100);
+    if (request) payload.wantOther = request;
   }
   return payload;
 }

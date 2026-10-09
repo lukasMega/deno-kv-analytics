@@ -14,7 +14,14 @@
 // See classify.ts for why isbot resolves without a build step on Deploy.
 import { isbot } from "isbot";
 import { badgeSvg, formatCount, safeColor, safeLabel } from "./badge.ts";
-import { botKind, clamp, country, parseUA, refGroup } from "./classify.ts";
+import {
+  botKind,
+  clamp,
+  country,
+  normPath,
+  parseUA,
+  refGroup,
+} from "./classify.ts";
 import { writeAppPing } from "./app_ingest.ts";
 import { createSurveyLimiter, ingestSurvey } from "./survey_ingest.ts";
 import { readSurveys } from "./survey_reads.ts";
@@ -144,9 +151,8 @@ export function createHandler(kv: Deno.Kv, sites: Map<string, Site>) {
 
     // --- beacon ingest ---
     if (req.method === "GET" && url.pathname === "/e") {
-      // Unknown site → the same gif, but nothing written. Not a 4xx: the response
-      // must not tell a prober which sites exist, and a misconfigured consumer
-      // should degrade to a no-op rather than to a broken image on every page.
+      // Unknown site → same gif, nothing written. Not a 4xx: a prober must not
+      // learn which sites exist, and a bad consumer should no-op, not break.
       if (!site) return gif();
 
       const ua = req.headers.get("user-agent") ?? "";
@@ -187,12 +193,10 @@ export function createHandler(kv: Deno.Kv, sites: Map<string, Site>) {
       let dims: [string, string][];
       if (isEvent) {
         const ev = clamp(d.ev);
-        // The behavioral probe rides the same beacon shape as a download/outbound
-        // click, but its verdict is not a user action — give it its own dims so
-        // `event`/`event_target` stay a list of real interactions. Without this
-        // split, `event_target` interleaves latency buckets with filenames and
-        // outbound hosts, and `hi` (≈1 per pageview) squashes the download/outbound
-        // bars, which scale against the largest count in the dim.
+        // The behavioral probe's verdict is not a user action — own dims keep
+        // `event`/`event_target` a list of real interactions. Otherwise latency
+        // buckets interleave with filenames, and `hi` (≈1 per pageview) squashes
+        // the download/outbound bars, which scale against the largest count.
         if (ev === "hi") {
           // one dim, not two: the bucket IS the value → 1 write unit, not 2
           dims = [["hi", clamp(d.t ?? "unknown")]];
@@ -212,7 +216,7 @@ export function createHandler(kv: Deno.Kv, sites: Map<string, Site>) {
         const ref = clamp(d.r || "direct");
         dims = [
           ["pv", "_"],
-          ["path", clamp(d.p ?? "/")],
+          ["path", clamp(normPath(d.p ?? "/"))],
           ["host", clamp(d.h ?? host)],
           ["ref", ref],
           ["ref_group", refGroup(ref, d.h ?? host)],

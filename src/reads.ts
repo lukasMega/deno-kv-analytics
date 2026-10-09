@@ -2,6 +2,8 @@
 // Owns every counter *read* path: per-day stats, the badge's windowed and
 // all-time pageview counts, and the `BADGE_SITES` opt-in set.
 
+import { normPath } from "./classify.ts";
+
 // Sum a key prefix into { dim: { value: count } }.
 //
 // `len` is the exact key length this layout produces, and it is load-bearing:
@@ -18,7 +20,8 @@ async function readPrefix(
   for await (const row of kv.list<Deno.KvU64>({ prefix })) {
     if (row.key.length !== len) continue;
     const dim = row.key[len - 2] as string;
-    const value = row.key[len - 1] as string;
+    let value = row.key[len - 1] as string;
+    if (dim === "path") value = normPath(value);
     (out[dim] ??= {})[value] = (out[dim][value] ?? 0) + Number(row.value.value);
   }
   return out;

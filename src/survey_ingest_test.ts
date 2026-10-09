@@ -109,6 +109,123 @@ Deno.test("survey drops bad shapes and caps arrays, context and trimmed comments
   assertEquals(validateSurvey({ sv: 2, a: {}, c: "  " }), { sv: 2, a: {} });
 });
 
+Deno.test("other use detail is optional, trimmed, capped and tied to Other", () => {
+  const a = { "use-for": ["development", "other"] };
+  assertEquals(
+    validateSurvey({ sv: 1, a, useForOther: "  Teaching  " })?.useForOther,
+    "Teaching",
+  );
+  assertEquals(
+    validateSurvey({ sv: 1, a, useForOther: "x".repeat(301) })?.useForOther,
+    "x".repeat(300),
+  );
+  for (const detail of ["  ", null, 42, ["Teaching"]]) {
+    assertEquals(
+      validateSurvey({ sv: 1, a, useForOther: detail })?.useForOther,
+      undefined,
+    );
+  }
+  for (const answer of [undefined, ["development"], "other"]) {
+    assertEquals(
+      validateSurvey({
+        sv: 1,
+        a: { "use-for": answer },
+        useForOther: "Teaching",
+      })?.useForOther,
+      undefined,
+    );
+  }
+});
+
+Deno.test("other request detail is optional, trimmed, capped and tied to Other", () => {
+  const a = { want: ["widgets", "other"] };
+  assertEquals(
+    validateSurvey({ sv: 1, a, wantOther: "  MIDI support  " })?.wantOther,
+    "MIDI support",
+  );
+  assertEquals(
+    validateSurvey({ sv: 1, a, wantOther: "x".repeat(101) })?.wantOther,
+    "x".repeat(100),
+  );
+  for (const detail of ["  ", null, 42, ["MIDI support"]]) {
+    assertEquals(
+      validateSurvey({ sv: 1, a, wantOther: detail })?.wantOther,
+      undefined,
+    );
+  }
+  for (const want of [undefined, ["widgets"], "other"]) {
+    assertEquals(
+      validateSurvey({ sv: 1, a: { want }, wantOther: "MIDI support" })
+        ?.wantOther,
+      undefined,
+    );
+  }
+});
+
+Deno.test("other use text survives storage, comments and export with full UTF-8 text", async () => {
+  const { kv, h } = await fixture();
+  try {
+    const body = {
+      ...payload,
+      a: {
+        ...payload.a,
+        "use-for": ["other"],
+        want: [...payload.a.want, "other"],
+        features: Array.from(
+          { length: 12 },
+          (_, i) => `feature-${i}-extra-long`,
+        ),
+      },
+      c: "界".repeat(280),
+      useForOther: "界".repeat(300),
+      wantOther: "愿".repeat(100),
+    };
+    assert(new TextEncoder().encode(JSON.stringify(body)).length > 2048);
+    assertEquals((await h(post(body), info())).status, 204);
+    const summary = await (await h(read())).json();
+    assertEquals(summary.counts["use-for"], { other: 1 });
+    assertEquals(summary.comments, [{
+      day: new Date().toISOString().slice(0, 10),
+      c: body.c,
+      useForOther: body.useForOther,
+      wantOther: body.wantOther,
+    }]);
+    const exported = await (await h(read("/surveys/export"))).json();
+    assertEquals(exported.responses[0].useForOther, body.useForOther);
+    assertEquals(exported.responses[0].c, body.c);
+    assertEquals(exported.responses[0].wantOther, body.wantOther);
+    const withoutComment = {
+      sv: 1,
+      a: { "use-for": ["other"] },
+      useForOther: "Teaching",
+    };
+    assertEquals((await h(post(withoutComment), info())).status, 204);
+    const updated = await (await h(read())).json();
+    assert(
+      updated.comments.some((comment: { c?: string; useForOther?: string }) =>
+        comment.useForOther === "Teaching" && comment.c === undefined
+      ),
+    );
+    const requestOnly = {
+      sv: 1,
+      a: { want: ["other"] },
+      wantOther: "MIDI support",
+    };
+    assertEquals((await h(post(requestOnly), info())).status, 204);
+    const final = await (await h(read())).json();
+    assert(
+      final.comments.some((
+        comment: { c?: string; useForOther?: string; wantOther?: string },
+      ) =>
+        comment.wantOther === "MIDI support" && comment.c === undefined &&
+        comment.useForOther === undefined
+      ),
+    );
+  } finally {
+    kv.close();
+  }
+});
+
 Deno.test("survey rejects malformed JSON and invalid survey versions", async () => {
   const { kv, h } = await fixture();
   try {
@@ -131,22 +248,22 @@ Deno.test("survey rejects malformed JSON and invalid survey versions", async () 
   }
 });
 
-Deno.test("survey enforces 2KB on declared, actual and streamed UTF-8 bytes", async () => {
+Deno.test("survey enforces 4KB on declared, actual and streamed UTF-8 bytes", async () => {
   const { kv, h } = await fixture();
   try {
     assertEquals(
       (await h(
-        post(payload, "shared", "s=alpha", { "content-length": "2049" }),
+        post(payload, "shared", "s=alpha", { "content-length": "4097" }),
         info(),
       )).status,
       413,
     );
     assertEquals(
-      (await h(post({ ...payload, c: "x".repeat(2048) }), info())).status,
+      (await h(post({ ...payload, c: "x".repeat(4096) }), info())).status,
       413,
     );
     const bytes = new TextEncoder().encode(
-      JSON.stringify({ ...payload, c: "🙂".repeat(600) }),
+      JSON.stringify({ ...payload, c: "🙂".repeat(1100) }),
     );
     const stream = new ReadableStream<Uint8Array>({
       start(controller) {
