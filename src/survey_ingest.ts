@@ -4,6 +4,8 @@ const MODEL_ID = /^[a-z0-9][a-z0-9_-]{0,31}$/;
 const SEMVER = /^\d+\.\d+\.\d+$/;
 const OS_VERSION = /^[a-z][a-z0-9_]{0,15}(-[a-z0-9.]{1,12})?$/;
 const MAX_BODY = 4096;
+// Owner test submissions: stored out of sight of every normal read.
+const TEST_COMMENT = "test-survey";
 const HOUR = 60 * 60 * 1000;
 
 export interface SurveyPayload {
@@ -147,8 +149,18 @@ export async function ingestSurvey(
     // the response cannot tell a prober which sites exist.
     if (site) {
       const day = new Date().toISOString().slice(0, 10);
+      // A 6-part key: readers that expect 5 parts skip it, admin walks keep it.
+      const hidden = payload.c?.toLowerCase() === TEST_COMMENT;
+      if (hidden) delete payload.c;
       await kv.set(
-        ["survey", site, payload.sv, day, crypto.randomUUID()],
+        [
+          "survey",
+          site,
+          payload.sv,
+          day,
+          crypto.randomUUID(),
+          ...(hidden ? ["hidden"] : []),
+        ],
         payload,
       );
     }

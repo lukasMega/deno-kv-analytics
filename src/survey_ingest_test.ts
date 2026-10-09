@@ -543,3 +543,90 @@ Deno.test("survey rows remain after counter prune and participate in site erasur
     kv.close();
   }
 });
+
+Deno.test("survey comment test-survey hides the row from reads; only admin export?hidden=1 shows it", async () => {
+  const { kv, h } = await fixture();
+  try {
+    await h(post({ ...payload, c: " Test-Survey " }), info());
+    await h(post(payload), info("192.0.2.2"));
+    const rows = await Array.fromAsync(kv.list({ prefix: ["survey"] }));
+    const hidden = rows.filter((row) => row.key.length === 6);
+    assertEquals(hidden.length, 1);
+    assertEquals(hidden[0].key[5], "hidden");
+    assertEquals((hidden[0].value as { c?: string }).c, undefined);
+    const summary = await (await h(read())).json();
+    assertEquals(summary.total, 1);
+    assertEquals(summary.comments.length, 1);
+    const plain = await (await h(read("/surveys/export"))).json();
+    assertEquals(plain.responses.length, 1);
+    const siteToken = await (await h(
+      read("/surveys/export", "site=alpha&hidden=1"),
+    )).json();
+    assertEquals(siteToken.responses.length, 1);
+    const admin = await (await h(
+      read("/surveys/export", "site=alpha&hidden=1", "testtoken"),
+    )).json();
+    assertEquals(admin.responses.length, 2);
+    assertEquals(
+      admin.responses.filter((r: { hidden?: boolean }) => r.hidden).length,
+      1,
+    );
+    assertEquals(await Array.fromAsync(kv.list({ prefix: ["c"] })), []);
+  } finally {
+    kv.close();
+  }
+});
+
+Deno.test("survey export cursor counts hidden rows so pages stay complete", async () => {
+  const { kv, h } = await fixture();
+  try {
+    for (let i = 0; i < 100; i++) {
+      await kv.set(
+        [
+          "survey",
+          "alpha",
+          1,
+          "2026-10-09",
+          String(i).padStart(3, "0"),
+          "hidden",
+        ],
+        payload,
+      );
+    }
+    await kv.set(["survey", "alpha", 1, "2026-10-09", "999"], payload);
+    const first = await (await h(read("/surveys/export"))).json();
+    assertEquals(first.responses.length, 0);
+    assert(typeof first.cursor === "string");
+    const next = await (await h(
+      read(
+        "/surveys/export",
+        `site=alpha&cursor=${encodeURIComponent(first.cursor)}`,
+      ),
+    )).json();
+    assertEquals(next.responses.length, 1);
+  } finally {
+    kv.close();
+  }
+});
+
+Deno.test("survey summary: admin sees hiddenCount and can opt in to test rows; site token never", async () => {
+  const { kv, h } = await fixture();
+  try {
+    await h(post({ ...payload, c: "test-survey" }), info());
+    await h(post(payload), info("192.0.2.2"));
+    const site = await (await h(read("/surveys", "site=alpha&hidden=1")))
+      .json();
+    assertEquals(site.total, 1);
+    assertEquals(site.admin, undefined);
+    assertEquals(site.hiddenCount, undefined);
+    const off = await (await h(read("/surveys", "site=alpha", "testtoken")))
+      .json();
+    assertEquals([off.total, off.admin, off.hiddenCount], [1, true, 1]);
+    const on = await (await h(
+      read("/surveys", "site=alpha&hidden=1", "testtoken"),
+    )).json();
+    assertEquals(on.total, 2);
+  } finally {
+    kv.close();
+  }
+});

@@ -14,8 +14,11 @@ export interface SurveySummary {
   };
   cross: string;
   groups: Record<string, { total: number; counts: Counts }>;
+  /** Admin only: lets the dashboard show the test-data toggle. */
+  admin?: true;
+  hiddenCount?: number;
   comments: (
-    & { day: string }
+    & { day: string; test?: true }
     & Pick<SurveyPayload, "c" | "useForOther" | "wantOther">
   )[];
 }
@@ -40,6 +43,7 @@ export async function readSurveys(
   kv: Deno.Kv,
   site: string,
   url: URL,
+  admin = false,
 ): Promise<Response> {
   const sv = Number(url.searchParams.get("sv") ?? "1");
   const from = url.searchParams.get("from") ?? "0000-01-01";
@@ -52,6 +56,8 @@ export async function readSurveys(
   ) {
     return new Response("invalid survey filters", { status: 400 });
   }
+  // Hidden test rows are admin-only and opt-in.
+  const withHidden = admin && url.searchParams.get("hidden") === "1";
   const selector = {
     start: ["survey", site, sv, from],
     end: ["survey", site, sv, to, "\uffff"],
@@ -60,11 +66,19 @@ export async function readSurveys(
   if (url.pathname === "/surveys/export") {
     const cursor = url.searchParams.get("cursor") ?? undefined;
     const rows = kv.list<SurveyPayload>(selector, { limit: 100, cursor });
-    const responses: (SurveyPayload & { day: string })[] = [];
+    const responses: (SurveyPayload & { day: string; hidden?: true })[] = [];
+    let seen = 0;
     try {
       for await (const row of rows) {
+        seen++;
         if (row.key.length === 5) {
           responses.push({ day: String(row.key[3]), ...row.value });
+        } else if (withHidden && row.key.length === 6) {
+          responses.push({
+            day: String(row.key[3]),
+            ...row.value,
+            hidden: true,
+          });
         }
       }
     } catch (error) {
@@ -77,7 +91,8 @@ export async function readSurveys(
       site,
       sv,
       responses,
-      cursor: responses.length === 100 ? rows.cursor : null,
+      // Count rows read, not kept: skipped hidden rows still fill a page.
+      cursor: seen === 100 ? rows.cursor : null,
     }, { headers });
   }
   const summary: SurveySummary = {
@@ -89,9 +104,12 @@ export async function readSurveys(
     cross,
     groups: Object.create(null),
     comments: [],
+    ...(admin ? { admin: true as const, hiddenCount: 0 } : {}),
   };
   for await (const row of kv.list<SurveyPayload>(selector)) {
-    if (row.key.length !== 5) continue;
+    const test = row.key.length === 6;
+    if (test && admin) summary.hiddenCount!++;
+    if (row.key.length !== 5 && !(test && withHidden)) continue;
     const payload = row.value;
     summary.total++;
     add(summary.counts, payload.a);
@@ -115,6 +133,7 @@ export async function readSurveys(
     if (payload.c || payload.useForOther || payload.wantOther) {
       summary.comments.push({
         day: String(row.key[3]),
+        ...(test ? { test: true as const } : {}),
         ...(payload.c ? { c: payload.c } : {}),
         ...(payload.useForOther ? { useForOther: payload.useForOther } : {}),
         ...(payload.wantOther ? { wantOther: payload.wantOther } : {}),
