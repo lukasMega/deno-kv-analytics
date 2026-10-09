@@ -22,7 +22,7 @@
     // Output must sit flat next to src/main.ts: Deploy bundles sibling new-URL
     // files but skips subdirectories (also why there is no src/vendor/).
     "build-client": "deno bundle --platform browser --minify --format iife src/client/beacon.ts -o src/s.js",
-    "build-dashboard": "deno bundle --platform browser --format esm src/dashboard/main.tsx -o src/dashboard.js",
+    "build-dashboard": "deno bundle --platform browser --format esm --minify src/dashboard/main.tsx -o src/dashboard.js",
     "build-da-common": "deno bundle --platform browser --format esm src/ui/da-common.ts -o src/da-common.js",
     "build-ui": "deno task build-dashboard && deno task build-da-common",
     // Every visitor loads the beacon, so size regressions cost real bytes: CI
