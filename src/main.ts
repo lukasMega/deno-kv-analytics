@@ -295,7 +295,9 @@ export function createHandler(kv: Deno.Kv, sites: Map<string, Site>) {
       if (!site || !ok) {
         return new Response("unauthorized", { status: 401 });
       }
-      if (url.pathname !== "/stats") return await readSurveys(kv, site, url);
+      if (url.pathname !== "/stats") {
+        return await readSurveys(kv, site, url, isAdmin(token));
+      }
 
       const from = url.searchParams.get("from");
       const to = url.searchParams.get("to");

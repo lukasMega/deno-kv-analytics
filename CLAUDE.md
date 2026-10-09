@@ -133,7 +133,10 @@ below: `admin.ts` `deleteSite` and `sizeOf` do. An erasure that missed
 explicit submissions retain answers together. No stored IP/install id/finer
 timestamp; the IP bucket is process-local only. Unknown top-level fields are
 dropped. Counter pruning leaves surveys intact. Site listing, usage, sizing and
-erasure include this third prefix. Reads use the resolved-site token boundary.
+erasure include this third prefix. Reads use the resolved-site token boundary. A
+comment of `test-survey` (case-insensitive) stores the row under a 6-part key
+`[..., id, "hidden"]` with the comment dropped: 5-part readers skip it, admin
+walks keep it, and only the admin token's `/surveys/export?hidden=1` returns it.
 
 **Dims are counted independently** — no co-occurrence, so no cross-dim
 segmentation, which is what keeps the no-consent claim true. One deliberate

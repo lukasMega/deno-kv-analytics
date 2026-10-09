@@ -14,6 +14,7 @@ export function SurveyPanel({ token, site, range, refresh }: {
   const [question, setQuestion] = useState("nps");
   const [data, setData] = useState<SurveySummary | null>(null);
   const [status, setStatus] = useState("");
+  const [showTest, setShowTest] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState("");
   const exportController = useRef<AbortController | null>(null);
@@ -32,6 +33,7 @@ export function SurveyPanel({ token, site, range, refresh }: {
         sv: version,
         cross,
         ...range,
+        ...(showTest ? { hidden: "1" } : {}),
       })}`,
       {
         headers: { authorization: `Bearer ${token}` },
@@ -54,12 +56,12 @@ export function SurveyPanel({ token, site, range, refresh }: {
       if (!controller.signal.aborted) setStatus(String(error.message));
     });
     return () => controller.abort();
-  }, [token, site, range.from, range.to, version, cross, refresh]);
+  }, [token, site, range.from, range.to, version, cross, refresh, showTest]);
   // Cancel downloads when their token/site/filter context changes or tab closes.
   useEffect(() => {
     setExporting(false);
     return () => exportController.current?.abort();
-  }, [token, site, range.from, range.to, version]);
+  }, [token, site, range.from, range.to, version, showTest]);
   const exportJson = async () => {
     exportController.current?.abort();
     const controller = new AbortController();
@@ -74,6 +76,7 @@ export function SurveyPanel({ token, site, range, refresh }: {
           site: site.trim(),
           sv: version,
           ...range,
+          ...(showTest ? { hidden: "1" } : {}),
           ...(cursor ? { cursor } : {}),
         });
         const response = await fetch(`/surveys/export?${query}`, {
@@ -143,6 +146,17 @@ export function SurveyPanel({ token, site, range, refresh }: {
             <option value="v">App version</option>
           </select>
         </label>
+        {data?.admin && (
+          <label class="toggle">
+            <input
+              id="showTestSurveys"
+              type="checkbox"
+              checked={showTest}
+              onChange={(event) => setShowTest(event.currentTarget.checked)}
+            />{" "}
+            test data ({data.hiddenCount ?? 0})
+          </label>
+        )}
         <button
           id="exportSurveys"
           type="button"
@@ -252,7 +266,7 @@ export function SurveyPanel({ token, site, range, refresh }: {
           <h2>Comments ({data.comments.length})</h2>
           {data.comments.map((comment, index) => (
             <div class="surveyComment" key={index}>
-              <small>{comment.day} UTC</small>
+              <small>{comment.day} UTC{comment.test && " · test"}</small>
               {comment.useForOther && (
                 <p>
                   <strong>Other use:</strong> {comment.useForOther}
