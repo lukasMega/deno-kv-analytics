@@ -6,7 +6,8 @@
     "jsr:@std/fmt@^1.0.10": "1.0.10",
     "jsr:@std/internal@^1.0.12": "1.0.14",
     "jsr:@std/internal@^1.0.14": "1.0.14",
-    "npm:isbot@^5.2.2": "5.2.2"
+    "npm:isbot@^5.2.2": "5.2.2",
+    "npm:preact@10.26.4": "10.26.4"
   },
   "jsr": {
     "@std/assert@1.0.19": {
@@ -32,13 +33,17 @@
   "npm": {
     "isbot@5.2.2": {
       "integrity": "sha512-iQcBXcd+Rv/pkubRyGh2utW2j1oPG5hZY6TUhVPpqK4G+o3IbxpJNx04hgksjc/N7GK5pEorUxDeg31cFgEk/w=="
+    },
+    "preact@10.26.4": {
+      "integrity": "sha512-KJhO7LBFTjP71d83trW+Ilnjbo+ySsaAgCfXOXUlmGzJ4ygYPWmysm77yg4emwfmoz3b22yvH5IsVFHbhUaH5w=="
     }
   },
   "workspace": {
     "dependencies": [
       "jsr:@std/assert@1",
       "jsr:@std/cli@1",
-      "npm:isbot@^5.2.2"
+      "npm:isbot@^5.2.2",
+      "npm:preact@10.26.4"
     ]
   }
 }

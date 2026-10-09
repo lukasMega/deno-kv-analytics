@@ -16,8 +16,8 @@ const MAX_DEVICE_IDS = 8;
 // `windows-11`, `ubuntu-24.04`, or a bare distro id. Bucketed by the client — a
 // patch version here would be one KV key per patch release per install.
 const OS_VERSION = /^[a-z][a-z0-9_]{0,15}(-[a-z0-9.]{1,12})?$/;
-// Offset, not an IANA zone: under 40 values, and far less identifying.
 const TZ_OFFSET = /^(UTC[+-]\d{2}:\d{2}|unknown)$/;
+const TZ_NAME = /^[\w.+-]+(?:\/[\w.+-]+){1,3}$/;
 // Client sends a locale tag (`sk-SK`) or a bare region; only the region half
 // is a country, so take the last `-` segment and validate that.
 const COUNTRY = /^[a-z]{2,3}$/i;
@@ -40,6 +40,12 @@ export function appDims(d: Record<string, string>): [string, string][] {
   // Dropped, not clamped: a clamped off-vocabulary value still mints a key.
   if (OS_VERSION.test(d.ov ?? "")) dims.push(["app_os_version", d.ov]);
   if (TZ_OFFSET.test(d.tz ?? "")) dims.push(["app_tz_offset", d.tz]);
+  if (
+    d.tz === "UTC" ||
+    (typeof d.tz === "string" && d.tz.length <= 64 && TZ_NAME.test(d.tz))
+  ) {
+    dims.push(["app_tz", d.tz]);
+  }
   // A dev build's version would be indistinguishable from a release once it is
   // in the dim, so drop anything that isn't a plain numeric triple.
   if (SEMVER.test(d.v ?? "")) dims.push(["app_version", d.v]);

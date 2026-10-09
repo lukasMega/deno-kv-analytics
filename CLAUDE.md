@@ -73,9 +73,9 @@ tooling that never ships.
 - `src/client/beacon.ts` — browser script, built to `src/s.js`, served at
   `/s.js`. Edit the `.ts`; `s.js` is generated (fmt/lint-excluded). The
   `client/` subdir is safe: build input, never read at runtime.
-- `src/dashboard.html` — `/dashboard` markup; logic in `src/dashboard.js` (+
-  `src/dash-charts.js` for the uPlot trend chart and day×hour heatmap), styles
-  in `src/dashboard.css`. Fetches `/stats` and `/sites`.
+- `src/dashboard/` — TypeScript Preact dashboard sources. `src/dashboard.js`
+  stays committed, flat build output; uPlot remains vendored locally. Styles
+  live in `src/dashboard.css`. Fetches `/stats` and `/sites`.
 - `src/help.html` / `src/help.js` — guided setup at `/help`. Each step checks
   itself against `/`, `/stats`, `/sites`; no endpoint exists only for the
   tutorial, so it cannot drift from the server. Hosts the test-beacon/seed tool
@@ -98,20 +98,20 @@ tooling that never ships.
 
 Routes: `GET /e` (beacon → 1×1 gif), `/stats`, `/sites`, `/badge`, `/dashboard`,
 `/help`, `/s.js`, `/vendor/uPlot.*`, the `UI_ASSETS` table (`/dashboard.css`,
-`/dashboard.js`, `/dash-charts.js`, `/da-common.js`, `/help.js`), `/` → `ok`.
-Both HTML pages are ungated: they carry no secret, the token is typed in, and a
-new operator must reach `/help` before they have one.
+`/dashboard.js`, `/da-common.js`, `/help.js`), `/` → `ok`. Both HTML pages are
+ungated: they carry no secret, the token is typed in, and a new operator must
+reach `/help` before they have one.
 
 ## Invariants that break silently if violated
 
 **Deploy bundles only flat siblings of the entrypoint.** `dashboard.html`,
-`help.html`, `dashboard.css`, `dashboard.js`, `dash-charts.js`, `da-common.js`,
-`help.js`, `s.js`, `uPlot.iife.min.js`, `uPlot.min.css` must stay next to
-`src/main.ts` and be read via `new URL("./x", import.meta.url)` +
-`Deno.readTextFile`. Subdirectories are not uploaded and `with { type: "text" }`
-is ignored at runtime — hence no `src/vendor/`, hence the entrypoint is
-`src/main.ts`, hence `deno.json` scopes excludes to `fmt`/`lint` only (a
-top-level `exclude` drops files from the upload and they 404).
+`help.html`, `dashboard.css`, `dashboard.js`, `da-common.js`, `help.js`, `s.js`,
+`uPlot.iife.min.js`, `uPlot.min.css` must stay next to `src/main.ts` and be read
+via `new URL("./x", import.meta.url)` + `Deno.readTextFile`. Subdirectories are
+not uploaded and `with { type: "text" }` is ignored at runtime — hence no
+`src/vendor/`, hence the entrypoint is `src/main.ts`, hence `deno.json` scopes
+excludes to `fmt`/`lint` only (a top-level `exclude` drops files from the upload
+and they 404).
 
 **KV key = `["c", site, day, dim, value]`, exactly 5 segments**, value a bigint
 via `kv.atomic().sum(key, 1n)`. Reads filter on `key.length` because a site id

@@ -6,22 +6,30 @@ description: Endpoints, the auth model, and what the dashboard renders.
 
 # Dashboard & API
 
+Dashboard uses Preact. TypeScript sources live in `src/dashboard/`; committed
+flat `src/dashboard.js` stays deployable. Help remains plain JavaScript.
+
 ## Endpoints
 
 - **`GET /s.js`** — the browser beacon (~2.8 KB minified). Config comes off the
-  script tag: `data-site` (optional on a mapped custom domain) and `data-dev="1"`
-  to collect from localhost, which is otherwise skipped.
+  script tag: `data-site` (optional on a mapped custom domain) and
+  `data-dev="1"` to collect from localhost, which is otherwise skipped.
 - **`GET /e?s=<site>&v=<base64>`** — beacon, sent as a 1×1 gif-pixel image
   request. `v = base64(encodeURIComponent(JSON.stringify({p,r,l,ls,tz,…})))`.
   Browser/OS are derived from the request `user-agent` header **server-side**;
   the client UA is ignored. Always answers with the same gif, for every input.
+- **`GET /a?s=<site>&v=<base64>`** — desktop-app ping, using the same payload
+  encoding and gif response as `/e`. It bypasses browser bot classification and
+  writes app-specific counters only. The client is responsible for sending at
+  most one ping per install per UTC day.
 - **`GET /stats?site=<id>&day=YYYY-MM-DD`** — JSON counts. `day` defaults to
   today (UTC). Range: `&from=…&to=…` (inclusive) merges into totals, read in
   parallel. Add `&series=1` for a per-day series
-  (`[[day, pv, uv, sessions, bot], …]`). **401** on a bad token _or_ an
+  (`[[day, pv, uv, sessions, bot, app], …]`). **401** on a bad token _or_ an
   unresolved site.
-- **`GET /sites`** — `[{id, host}]`, **admin token only**. Powers the dashboard's
-  site picker; a per-site token gets 401 there and you type the id instead.
+- **`GET /sites`** — `[{id, host}]`, **admin token only**. Powers the
+  dashboard's site picker; a per-site token gets 401 there and you type the id
+  instead.
 - **`GET /badge?site=<id>&days=30`** — an SVG counter for a README, the one
   **unauthenticated** read. Opt-in per site via `BADGE_SITES`; see
   [Badge](./badge.md). **404** for a site that did not opt in _and_ for one that
@@ -29,9 +37,31 @@ description: Endpoints, the auth model, and what the dashboard renders.
 - **`GET /dashboard`** — the analytics UI. **`GET /help`** — guided setup. Both
   are served ungated: they hold no secret, the token is typed into the page, and
   a new operator has to reach `/help` _before_ they have a working token. Their
-  assets (`/dashboard.css`, `/dashboard.js`, `/dash-charts.js`, `/da-common.js`,
-  `/help.js`) and the vendored uPlot (`/vendor/uPlot.iife.min.js`,
-  `/vendor/uPlot.min.css`) are served the same way. `GET /` — `ok`.
+  assets (`/dashboard.css`, `/dashboard.js`, `/da-common.js`, `/help.js`) and
+  the vendored uPlot (`/vendor/uPlot.iife.min.js`, `/vendor/uPlot.min.css`) are
+  served the same way. `GET /` — `ok`.
+
+## Desktop-app payload (`/a`)
+
+`v` decodes to one JSON object. These are all recognized payload fields; unknown
+fields are ignored. `s` is the normal allowlisted site selector, not a payload
+field. Host mapping and the single-site fallback work exactly as they do for
+`/e`.
+
+| payload field | accepted value                                                                             | stored dimension                                                   | dashboard display                                                            |
+| ------------- | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
+| `os`          | non-empty string, clamped to 128 characters                                                | `app_os`                                                           | `app_os` breakdown                                                           |
+| `ov`          | lowercase OS bucket such as `windows-11`, `macos-26`, `ubuntu-24.04`, `arch`, or `unknown` | `app_os_version`                                                   | `app_os_version` breakdown                                                   |
+| `tz`          | `UTC±HH:MM` or `unknown`                                                                   | `app_tz_offset`                                                    | `app_tz_offset` breakdown; selecting a row opens current matching IANA zones |
+| `v`           | release version `MAJOR.MINOR.PATCH`                                                        | `app_version`                                                      | `app_version` breakdown                                                      |
+| `dv`          | comma-separated device ids; first eight non-empty values, each clamped to 128 characters   | one `app_device` count per id                                      | `app_device` breakdown                                                       |
+| `country`     | locale tag or region, such as `sk-SK` or `SK`; final 2–3 letter segment is uppercased      | shared `country` dimension, unless a CDN country header is present | `country` breakdown                                                          |
+
+Every request also increments `app["_"]`, even when `v` is missing or malformed.
+This powers the **app pings** KPI and trend line. For one day it is a
+distinct-install count only when the client honors the once-daily contract; for
+longer ranges it is the sum of daily pings. It never increments `pv`, `uv`,
+`sessions`, or bot counters.
 
 ## Auth
 
@@ -46,21 +76,21 @@ only, never against the set of all tokens.
 ![The dashboard: trend chart, KPI tiles, day×hour heatmap and breakdowns over 30 days of seeded traffic](/img/dashboard.png)
 
 _Last 30 days over seeded demo data — `deno task demo` reproduces this exactly,
-with no real traffic. The deltas read `—` because the seeded range starts exactly
-30 days back, so there is no prior period to compare against._
+with no real traffic. The deltas read `—` because the seeded range starts
+exactly 30 days back, so there is no prior period to compare against._
 
 - **KPI tiles** — pageviews, visitors, sessions, views/visit, bounce rate,
-  engagement rate, human interaction, each with its delta against the prior
-  period of equal length.
+  engagement rate, human interaction, and app pings when present, each with its
+  delta against the prior period of equal length.
 - **Trend chart** (uPlot, vendored — no CDN) — pageviews / visitors / sessions,
-  plus a dashed `bots` line when _show bot traffic_ is on.
+  app pings when present, plus a dashed `bots` line when _show bot traffic_ is
+  on.
 - **Day × hour heatmap** — rendered from the `dowhour` joint counter, the one
-  pairwise dim in the schema
-  ([why](./design.md#dowhour--the-one-pairwise-dim)).
-- **Breakdowns** — every dim in two packed columns (one column under ~900px), top
-  10 per dim behind a _show all_ toggle, count + share of that dim's total on
-  each row. The filter box searches every value, capped or not, and hides dims
-  with no match.
+  pairwise dim in the schema ([why](./design.md#dowhour--the-one-pairwise-dim)).
+- **Breakdowns** — every dim in card or bar view, top 10 per dim behind a _show
+  all_ toggle, count + share of that dim's total on each row. The filter box
+  searches every value, capped or not, and hides dims with no match. App
+  timezone offsets open a map and current matching IANA-zone list.
 - **CSV export** — always includes the bot dims, regardless of the toggle.
 
 Everything comes from one `GET /stats?…&series=1` response. The period selector
@@ -79,8 +109,8 @@ should happen:
 1. collector reachable — `GET /` returns `ok`;
 2. site id + token — one `/stats` probe, which 401s both for a wrong token and
    for a site that token does not own;
-3. script tag installed — the snippet is rendered prefilled with your site id and
-   this origin, and the check looks for pageviews in the last two days;
+3. script tag installed — the snippet is rendered prefilled with your site id
+   and this origin, and the check looks for pageviews in the last two days;
 4. real traffic — the `host` dim contains the origin you pasted the tag on;
 5. a second project — the other site id is live and readable.
 

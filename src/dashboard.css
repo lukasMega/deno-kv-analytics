@@ -2,19 +2,40 @@
    upload subdirectories, so there is no src/css/. */
 
 :root { color-scheme: dark; }
+.loadProgress { position: fixed; inset: 0 0 auto; height: 3px; overflow: hidden; background: #20262f; z-index: 1000; pointer-events: none; }
+.loadProgress::after { content: ""; display: block; width: 35%; height: 100%; background: #88c0d0; box-shadow: 0 0 8px #88c0d0; animation: loadProgress 1.2s ease-in-out infinite; }
+@keyframes loadProgress { from { transform: translateX(-100%); } to { transform: translateX(286%); } }
+@media (prefers-reduced-motion: reduce) { .loadProgress::after { animation: none; width: 100%; } }
 [data-offset] { cursor: pointer; }
 [data-offset]:focus-visible { outline: 2px solid #88c0d0; outline-offset: 2px; }
 #timezoneModal { width: min(880px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); padding: 24px; background: #161b22; color: #d8dee9; border: 1px solid #30425c; border-radius: 12px; }
 #timezoneModal::backdrop { background: #000a; backdrop-filter: blur(4px); }
+#countryModal { width: min(880px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); padding: 24px; background: #161b22; color: #d8dee9; border: 1px solid #30425c; border-radius: 12px; }
+#countryModal::backdrop { background: #000a; backdrop-filter: blur(4px); }
+#timezoneMapModal { width: min(880px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); padding: 24px; background: #161b22; color: #d8dee9; border: 1px solid #30425c; border-radius: 12px; }
+#timezoneMapModal::backdrop { background: #000a; backdrop-filter: blur(4px); }
 .timezoneModalHead { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .timezoneModalHead h2 { margin: 0; font-size: 18px; }
 .timezoneModalHead button { margin: 0; background: #30425c; }
 .timezoneModalBody { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 20px; }
+.countryModalBody { display: grid; grid-template-columns: minmax(0, 3fr) minmax(170px, 1fr); gap: 24px; margin-top: 20px; }
+.timezoneMapModalBody { display: grid; grid-template-columns: minmax(0, 3fr) minmax(170px, 1fr); gap: 24px; margin-top: 20px; }
 .timezoneGlobe { display: block; width: 100%; max-width: 380px; height: auto; margin: auto; }
+.countryMap { display: block; width: 100%; max-width: 680px; height: auto; margin: auto; }
+.countryMap .countryHighlight { stroke: #eceff4; stroke-width: 2.5; filter: drop-shadow(0 0 4px #eceff4); }
+.timezoneMap { display: block; width: 100%; max-width: 680px; height: auto; margin: auto; }
+.timezoneMap .timezoneMapHighlight { stroke: #eceff4; stroke-width: 2.5; filter: drop-shadow(0 0 4px #eceff4); }
+.mapZoom { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 10px; }
+.mapZoom button { margin: 0; padding: 3px 6px; background: #1c2330; color: #9aa5b1; font-size: 10px; }
+.mapZoom button[aria-pressed="true"] { background: #30425c; color: #fff; }
 .timezoneList { max-height: 420px; overflow: auto; }
 .timezoneList h3 { margin-top: 0; font-size: 14px; }
 .timezoneList ul { padding-left: 20px; font-size: 12px; line-height: 2; }
-@media (max-width: 640px) { .timezoneModalBody { grid-template-columns: 1fr; } .timezoneGlobe { max-width: 240px; } }
+.countryListItem { cursor: default; }
+.countryListItem:hover { color: #ebcb8b; }
+.timezoneMapListItem { cursor: default; }
+.timezoneMapListItem:hover { color: #ebcb8b; }
+@media (max-width: 640px) { .timezoneModalBody, .countryModalBody, .timezoneMapModalBody { grid-template-columns: 1fr; } .timezoneGlobe { max-width: 240px; } .countryMap, .timezoneMap { max-width: 100%; } }
 * { box-sizing: border-box; }
 body {
   margin: 0; padding: 1em;
@@ -67,6 +88,8 @@ th, td { text-align: left; padding: 4px 10px 4px 0; border-bottom: 1px solid #20
 th { color: #6b7684; font-weight: normal; }
 td.n { text-align: right; color: #ebcb8b; }
 .dim { color: #88c0d0; margin: 14px 0 4px; font-size: 13px; }
+.mapButton { margin: 0 0 0 6px; padding: 0; border: 0; background: none; color: #88c0d0; font-size: 13px; line-height: 1; vertical-align: baseline; }
+.mapButton:hover, .mapButton:focus-visible { color: #ebcb8b; }
 .hint { color: #6b7684; font-size: 11px; margin-top: 6px; }
 .periods { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
 .periods button { margin-top: 0; padding: 6px 12px; background: #1c2330; color: #9aa5b1; font-size: 12px; }
@@ -117,7 +140,10 @@ td.n { text-align: right; color: #ebcb8b; }
    column flow packs a tall group (path, 10+ rows) against short ones instead
    of leaving grid-row dead space beside it, and `columns: <width>` picks the
    count itself so no media query is needed. */
-#breakdowns { columns: 420px 2; column-gap: 22px; }
+#breakdowns { container-type: inline-size; }
+.bdRemaining { columns: 420px 2; column-gap: 22px; }
+.bdPriority { display: grid; grid-template-columns: 1fr; gap: 0 22px; align-items: start; }
+@container (min-width: 862px) { .bdPriority { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .bdGroup { break-inside: avoid; margin-bottom: 14px; min-width: 0; }
 .barRow { position: relative; display: flex; justify-content: space-between; padding: 3px 8px; margin-bottom: 1px; border-radius: 3px; overflow: hidden; font-size: 11.5px; }
 .barFill { position: absolute; inset: 0; background: #243244; z-index: 0; }
@@ -132,14 +158,17 @@ td.n { text-align: right; color: #ebcb8b; }
 .breakdownViews { display: flex; gap: 6px; margin-bottom: 16px; }
 .breakdownViews button { margin: 0; padding: 6px 12px; background: #1c2330; color: #9aa5b1; font-size: 12px; }
 .breakdownViews button[aria-pressed="true"] { background: #30425c; color: #fff; }
-#breakdowns.cards { columns: 320px 3; column-gap: 16px; }
-.cards .bdGroup { background: #10151c; border: 1px solid #262d38; border-radius: 8px; padding: 14px; margin-bottom: 16px; }
-.cards .dim { margin: 0 0 12px; padding-bottom: 10px; border-bottom: 1px solid #262d38; color: #d8dee9; font-size: 13px; font-weight: 600; }
-.cards .barRow { padding: 9px 0; margin: 0; border-bottom: 1px solid #20262f; border-radius: 0; gap: 12px; }
+.cards .bdRemaining { columns: 250px 3; column-gap: 12px; }
+.cards .bdPriority { column-gap: 12px; }
+@container (min-width: 512px) { .cards .bdPriority { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@container (min-width: 774px) { .cards .bdPriority { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.cards .bdGroup { background: #10151c; border: 1px solid #262d38; border-radius: 8px; padding: 10px; margin-bottom: 12px; }
+.cards .dim { margin: 0 0 8px; padding-bottom: 7px; border-bottom: 1px solid #262d38; color: #d8dee9; font-size: 12px; font-weight: 600; }
+.cards .barRow { padding: 5px 0; margin: 0; border-bottom: 1px solid #20262f; border-radius: 0; gap: 8px; font-size: 11px; }
 .cards .barFill { inset: auto 0 0; height: 2px; background: #3a92a6; }
 .cards .barCount { color: #d8dee9; font-variant-numeric: tabular-nums; }
 .cards .barPct { display: inline-block; min-width: 38px; text-align: right; }
-.cards .bdMore { margin-top: 10px; padding: 4px 0; color: #88c0d0; }
+.cards .bdMore { margin-top: 6px; padding: 3px 0; color: #88c0d0; }
 
 /* --- /help: numbered steps, each with its own check verdict --- */
 .step { border: 1px solid #262d38; border-left-width: 3px; border-radius: 6px; padding: 12px 14px; margin-bottom: 12px; background: #161b22; }

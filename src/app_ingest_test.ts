@@ -195,3 +195,39 @@ Deno.test("appDims: tz offset is a fixed shape, anything else is dropped", () =>
     );
   }
 });
+
+Deno.test("appDims: named zones use a separate bounded dimension", () => {
+  for (
+    const tz of [
+      "UTC",
+      "Europe/Bratislava",
+      "America/Argentina/Buenos_Aires",
+      "Etc/GMT+5",
+    ]
+  ) {
+    assertEquals(
+      appDims({ tz }).some(([dim, value]) => dim === "app_tz" && value === tz),
+      true,
+    );
+  }
+  for (
+    const tz of [
+      "Europe",
+      "Europe//Paris",
+      "Europe/Par is",
+      "Europe/Paris?x=1",
+      "x".repeat(65),
+    ]
+  ) {
+    assertEquals(appDims({ tz }).some(([dim]) => dim === "app_tz"), false, tz);
+  }
+});
+
+Deno.test("named timezone appears in app stats", async () => {
+  const { kv, h } = await fixture();
+  await h(ping(encode({ tz: "Europe/Bratislava", v: "0.16.0" })));
+  const stats = await (await h(statsReq())).json();
+  assertEquals(stats.app_tz["Europe/Bratislava"], 1);
+  assertEquals(stats.app_tz_offset, undefined);
+  kv.close();
+});
