@@ -76,7 +76,7 @@ otherwise from the payload's locale region. App pings never write pageview,
 visitor, session, or bot dims. See the complete
 [payload table](./dashboard.md#desktop-app-payload-a).
 
-Every stored value is clamped to **128 chars**, so a hostile or buggy client
+Every counter value is clamped to **128 chars**, so a hostile or buggy client
 cannot inflate KV cost. Unknown fields (like `z`) are ignored.
 
 `day`, `hour` and `dowhour` all come from **one** clock read per hit, so a
@@ -84,6 +84,25 @@ request landing on the midnight boundary cannot be filed under one day carrying
 the next day's hour.
 
 </details>
+
+## Survey responses
+
+Explicit `POST /s` submissions use `["survey", site, sv, UTC-day, random-id]`.
+Each value is one validated response, allowing cross-tabs within that survey
+version. This is separate from the independent counters collected by `/e` and
+`/a`; their aggregate-only behavior is unchanged. Payload and read endpoints
+are documented in [Dashboard & API](./dashboard.md#survey-payload-post-s).
+
+No IP, install id, locale/timezone or timestamp finer than the UTC day is
+persisted. Random row ids only prevent collisions and are excluded from reads
+and exports. Comments are explicitly submitted text and may contain whatever
+the respondent typed. Survey rows survive counter pruning until site erasure;
+the operator's `list`, `usage`, `size` and `delete` commands include them.
+
+Abuse control is a three-token bucket, refilling at three tokens/hour per
+connection IP. Buckets are bounded to 10,000 entries, expire after an idle hour,
+and live only in process memory. Forwarding headers are ignored. Buckets reset
+on restart and are not shared across deployment instances.
 
 ## Write budget
 

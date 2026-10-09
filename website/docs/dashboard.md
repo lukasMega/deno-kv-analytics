@@ -22,6 +22,22 @@ flat `src/dashboard.js` stays deployable. Help remains plain JavaScript.
   encoding and gif response as `/e`. It bypasses browser bot classification and
   writes app-specific counters only. The client is responsible for sending at
   most one ping per install per UTC day.
+- **`POST /s?s=<site>`** — explicit desktop-app survey submission. JSON body
+  capped at 2 KiB; **204** after one response row is stored. An unknown site
+  gets the same responses but nothing is stored, so `/s` does not reveal which
+  sites exist. Invalid JSON or
+  survey version returns **400**, oversized bodies **413**, and exhausted
+  process-local IP buckets **429** with `Retry-After` (three tokens per hour).
+- **`GET /surveys?site=<id>&sv=1&from=YYYY-MM-DD&to=YYYY-MM-DD&cross=os`** —
+  authenticated response counts, NPS, comments and per-option cross-tabs.
+  `sv` defaults to 1; omitted dates include all stored days. `cross` accepts
+  `os`, `dv` (model) or `v` (app version). Missing context appears as `unknown`.
+- **`GET /surveys/export?site=<id>&sv=1&from=…&to=…`** — authenticated JSON
+  response pages: `{site, sv, responses, cursor}`. Each response has its UTC
+  `day` plus validated payload; pages contain at most 100 rows. Pass returned
+  `cursor` on the next request, keeping site/version/date filters unchanged;
+  `null` ends pagination. Internal row ids are excluded. Survey reads return
+  `Cache-Control: no-store` and use the same site-token boundary as `/stats`.
 - **`GET /stats?site=<id>&day=YYYY-MM-DD`** — JSON counts. `day` defaults to
   today (UTC). Range: `&from=…&to=…` (inclusive) merges into totals, read in
   parallel. Add `&series=1` for a per-day series
@@ -68,8 +84,37 @@ longer ranges it is the sum of daily pings. It never increments `pv`, `uv`,
 `Authorization: Bearer <token>` — what the dashboard uses, since it keeps the
 secret out of access logs — **or** `?token=…` for curl convenience.
 
-The tenancy boundary: `/stats` checks the token against the **resolved** site
+The tenancy boundary: `/stats`, `/surveys` and `/surveys/export` check the token against the **resolved** site
 only, never against the set of all tokens.
+
+## Survey payload (`POST /s`)
+
+The wire body matches the app's reviewed JSON:
+
+```json
+{
+  "sv": 1,
+  "v": "0.21.0",
+  "os": "macos",
+  "ov": "macos-26",
+  "dv": "mirabox-293s",
+  "a": { "rating": "4", "found": "ai-claude", "nps": "9", "want": ["widgets"] },
+  "c": "Useful app"
+}
+```
+
+`sv` must be a positive safe integer. Answer keys and option ids match
+`^[a-z0-9-]{1,32}$`; values are strings or arrays of at most 12 distinct valid
+ids. The app owns each version's question bank; the collector validates shapes
+so future banks need no collector update. Invalid answer/context shapes and
+unknown top-level fields are dropped. All questions may be skipped.
+
+`v` accepts numeric `MAJOR.MINOR.PATCH`; `os` is `macos`, `windows`, `linux` or
+`unknown`; `ov` uses the same OS-bucket shape as `/a`. `dv` retains at most eight
+distinct model ids matching `^[a-z0-9][a-z0-9_-]{0,31}$`. Optional `c` is trimmed
+and capped at 280 characters. Bodies are limited by actual UTF-8 bytes even
+without `Content-Length`. See [the survey data model](./design.md#survey-responses)
+for row storage, retention and rate-limit scope.
 
 ## What the dashboard renders
 
@@ -92,6 +137,11 @@ exactly 30 days back, so there is no prior period to compare against._
   searches every value, capped or not, and hides dims with no match. App
   timezone offsets open a map and current matching IANA-zone list.
 - **CSV export** — always includes the bot dims, regardless of the toggle.
+- **Surveys tab** — shares site, token and date controls; selects survey
+  version and OS/model/app-version grouping. Shows response totals, per-option
+  counts and shares, NPS, one-question cross-tabs and day-only comments. Multi-
+  model responses appear in each model group. **Export JSON** downloads all
+  matching response pages. `deno task demo` seeds surveys under `demo-app`.
 
 Everything comes from one `GET /stats?…&series=1` response. The period selector
 and the bot toggle re-render the loaded payload rather than refetching.

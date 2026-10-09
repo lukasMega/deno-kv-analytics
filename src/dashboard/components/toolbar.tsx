@@ -15,6 +15,7 @@ const periods: [Period, string][] = [
 export function Toolbar(
   props: {
     token: string;
+    survey?: boolean;
     site: string;
     sites: Site[];
     showBots: boolean;
@@ -70,15 +71,17 @@ export function Toolbar(
             <option value={site.id}>{site.host ?? site.id}</option>
           ))}
         </datalist>
-        <label class="toggle" for="showBots">
-          <input
-            type="checkbox"
-            id="showBots"
-            checked={props.showBots}
-            onChange={(event) => props.onBots(event.currentTarget.checked)}
-          />{" "}
-          bots
-        </label>
+        {!props.survey && (
+          <label class="toggle" for="showBots">
+            <input
+              type="checkbox"
+              id="showBots"
+              checked={props.showBots}
+              onChange={(event) => props.onBots(event.currentTarget.checked)}
+            />{" "}
+            bots
+          </label>
+        )}
         <input
           id="day"
           type="date"
@@ -91,14 +94,16 @@ export function Toolbar(
         <button id="load" type="button" class="alt" onClick={props.onLoad}>
           Load
         </button>
-        <details class="moreActions" id="moreActions">
-          <summary aria-label="More actions">⋯</summary>
-          <div id="actionsDropdown">
-            <button id="exportCsv" type="button" onClick={props.onExport}>
-              Export CSV
-            </button>
-          </div>
-        </details>
+        {!props.survey && (
+          <details class="moreActions" id="moreActions">
+            <summary aria-label="More actions">⋯</summary>
+            <div id="actionsDropdown">
+              <button id="exportCsv" type="button" onClick={props.onExport}>
+                Export CSV
+              </button>
+            </div>
+          </details>
+        )}
       </div>
       <div class="periods" id="periods">
         {periods.map(([value, label]) => (

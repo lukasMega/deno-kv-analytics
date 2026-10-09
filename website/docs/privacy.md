@@ -35,6 +35,17 @@ Individual visits are never stored as rows, so a single page view cannot be
 reconstructed, and no measurement can be joined to another (e.g. path ×
 country).
 
+## Optional desktop-app surveys
+
+Desktop apps can submit feedback only when users explicitly press Send. These
+survey responses are stored as individual rows, separate from pageview and
+daily-ping counters. They contain selected answers, optional short comments,
+app version, OS family/major bucket and device model ids, plus the UTC day.
+No IP or install id is stored. IPs are used only in temporary process-memory
+rate buckets. Comments may contain information respondents choose to type.
+Rows remain until the operator erases that site's data; reads require its
+site token or the admin token. This docs site's pageview beacon sends no survey.
+
 ## Visitor & session counting
 
 To count visitors and sessions **without cookies**, your browser keeps a random,

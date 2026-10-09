@@ -136,6 +136,16 @@ td.n { text-align: right; color: #ebcb8b; }
 .hmLegend { display: flex; align-items: center; gap: 6px; margin-top: 10px; color: #6b7684; font-size: 11px; }
 .hmSwatch { width: 14px; height: 14px; border-radius: 2px; }
 .search { margin: 4px 0 14px; }
+.surveyControls { margin-top: 14px; }
+.surveyControls label { margin: 0; display: flex; align-items: center; gap: 8px; }
+.surveyControls input { width: 72px; min-width: 0; flex: none; }
+#surveys select { padding: 5px 8px; background: #0e1116; color: #d8dee9; border: 1px solid #2a323d; border-radius: 5px; font: inherit; }
+.surveyAnswers { columns: 250px 3; column-gap: 12px; }
+.surveyTable { overflow-x: auto; }
+.surveyTable th { white-space: nowrap; }
+.surveyComment { border-bottom: 1px solid #262d38; padding: 8px 0; overflow-wrap: anywhere; }
+.surveyComment p { margin: 4px 0; white-space: pre-wrap; }
+button:disabled { cursor: default; opacity: .5; }
 /* two columns on a wide viewport, one below ~900px. Multi-column, not grid:
    column flow packs a tall group (path, 10+ rows) against short ones instead
    of leaving grid-row dead space beside it, and `columns: <width>` picks the

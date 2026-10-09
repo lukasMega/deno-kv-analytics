@@ -40,6 +40,51 @@ async function serve() {
   };
 }
 
+Deno.test("e2e: survey sender contract, authenticated reads and connection rate bucket", async () => {
+  const { base, close } = await serve();
+  try {
+    const payload = {
+      sv: 1,
+      v: "0.21.0",
+      os: "macos",
+      ov: "macos-26",
+      dv: "mirabox-293s",
+      a: { rating: "4", nps: "10", features: ["multi-deck"] },
+      c: "Works well",
+    };
+    for (let i = 0; i < 3; i++) {
+      const sent = await fetch(`${base}/s?s=demo`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      assertEquals(sent.status, 204);
+      await sent.arrayBuffer();
+    }
+    const limited = await fetch(`${base}/s?s=demo`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    assertEquals(limited.status, 429);
+    await limited.text();
+    const headers = { authorization: "Bearer e2etoken" };
+    const summary =
+      await (await fetch(`${base}/surveys?site=demo`, { headers })).json();
+    assertEquals(summary.total, 3);
+    assertEquals(summary.nps.score, 100);
+    const exported =
+      await (await fetch(`${base}/surveys/export?site=demo`, { headers }))
+        .json();
+    assertEquals(exported.responses.length, 3);
+    assertEquals(exported.responses[0].c, "Works well");
+    const unauthorized = await fetch(`${base}/surveys?site=demo`);
+    assertEquals(unauthorized.status, 401);
+    await unauthorized.text();
+  } finally {
+    await close();
+  }
+});
+
 Deno.test("e2e: beacon → KV → /stats, and every served asset resolves", async () => {
   const { base, close } = await serve();
   try {

@@ -70,6 +70,10 @@ tooling that never ships.
   testable; owns the isbot dependency.
 - `src/sites.ts` — tenancy: `loadSites()` parses `SITES`, `resolveSite()` maps a
   request to a site id, `tokenFor()` maps an id to its env var.
+- `src/survey_ingest.ts` — explicit `POST /s`: bounded JSON validation,
+  transient connection-IP buckets, one day-only response row.
+  `src/survey_reads.ts` owns authenticated counts/NPS/cross-tabs/comments and
+  paginated JSON export.
 - `src/client/beacon.ts` — browser script, built to `src/s.js`, served at
   `/s.js`. Edit the `.ts`; `s.js` is generated (fmt/lint-excluded). The
   `client/` subdir is safe: build input, never read at runtime.
@@ -96,11 +100,11 @@ tooling that never ships.
   `safeColor`. Pure (no KV, no Deno API); `main.ts` owns the `/badge` route and
   the reading.
 
-Routes: `GET /e` (beacon → 1×1 gif), `/stats`, `/sites`, `/badge`, `/dashboard`,
-`/help`, `/s.js`, `/vendor/uPlot.*`, the `UI_ASSETS` table (`/dashboard.css`,
-`/dashboard.js`, `/da-common.js`, `/help.js`), `/` → `ok`. Both HTML pages are
-ungated: they carry no secret, the token is typed in, and a new operator must
-reach `/help` before they have one.
+Routes: `GET /e` (beacon → 1×1 gif), `POST /s`, `/surveys`, `/surveys/export`,
+`/stats`, `/sites`, `/badge`, `/dashboard`, `/help`, `/s.js`, `/vendor/uPlot.*`,
+the `UI_ASSETS` table (`/dashboard.css`, `/dashboard.js`, `/da-common.js`,
+`/help.js`), `/` → `ok`. Both HTML pages are ungated: they carry no secret, the
+token is typed in, and a new operator must reach `/help` before they have one.
 
 ## Invariants that break silently if violated
 
@@ -117,13 +121,19 @@ and they 404).
 via `kv.atomic().sum(key, 1n)`. Reads filter on `key.length` because a site id
 may legitimately look like a date and collide with the 4-segment legacy prefix.
 
-**One key lives outside that prefix: `["t", site, "pv"]`** (`totalKey` in
+**All-time counts live outside that prefix: `["t", site, "pv"]`** (`totalKey` in
 `main.ts`), the all-time pageview count behind `/badge?days=all`. It is separate
 precisely so `prune` cannot delete it, and it is written only for sites in
 `BADGE_SITES` — a site with no badge pays no write unit for it. Anything that
-walks a site's data must walk **both** prefixes: `admin.ts` `deleteSite` and
-`sizeOf` do, and an erasure that missed `["t", site]` would leave a live total
-behind.
+walks a site's data must walk **both counter prefixes**, plus the survey prefix
+below: `admin.ts` `deleteSite` and `sizeOf` do. An erasure that missed
+`["t", site]` would leave a live total behind.
+
+**Survey rows use `["survey", site, sv, day, random-id]`.** Unlike pings,
+explicit submissions retain answers together. No stored IP/install id/finer
+timestamp; the IP bucket is process-local only. Unknown top-level fields are
+dropped. Counter pruning leaves surveys intact. Site listing, usage, sizing and
+erasure include this third prefix. Reads use the resolved-site token boundary.
 
 **Dims are counted independently** — no co-occurrence, so no cross-dim
 segmentation, which is what keeps the no-consent claim true. One deliberate

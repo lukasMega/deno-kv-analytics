@@ -23,6 +23,9 @@ export async function listSites(kv: Deno.Kv): Promise<string[]> {
   for await (const row of kv.list({ prefix: ["c"] })) {
     if (row.key.length === 5) seen.add(row.key[1] as string);
   }
+  for await (const row of kv.list({ prefix: ["survey"] })) {
+    if (row.key.length === 5) seen.add(row.key[1] as string);
+  }
   return [...seen].sort();
 }
 
@@ -34,12 +37,18 @@ export async function usage(kv: Deno.Kv, site: string) {
     keys++;
     days.add(row.key[2] as string);
   }
-  const sorted = [...days].sort();
   // The all-time counter lives outside the day-keyed prefix (it must survive
   // prune), so it is read separately — see main.ts `totalKey`.
   const total = await kv.get<Deno.KvU64>(["t", site, "pv"]);
+  let surveys = 0;
+  for await (const row of kv.list({ prefix: ["survey", site] })) {
+    surveys++;
+    days.add(row.key[3] as string);
+  }
+  const sorted = [...days].sort();
   return {
-    keys,
+    keys: keys + surveys,
+    surveys,
     days: days.size,
     first: sorted[0] ?? null,
     last: sorted.at(-1) ?? null,
@@ -52,7 +61,8 @@ export async function usage(kv: Deno.Kv, site: string) {
  *
  * KV exposes no size API — the billed number lives only in the Deploy console —
  * so this walks the rows and estimates. Each key segment costs its own length
- * plus a type tag and terminator; the value is always a bigint counter. Index
+ * plus a type tag and terminator; counters use a bigint estimate, surveys their
+ * JSON byte size. Index
  * and replication overhead are invisible from userland, so the real figure is
  * higher. Good enough to answer "are we near the free tier", not for billing.
  *
@@ -86,21 +96,29 @@ export async function sizeOf(kv: Deno.Kv) {
     acc.bytes += n;
     sites.set(row.key[1] as string, acc);
   }
+  for await (const row of kv.list({ prefix: ["survey"] })) {
+    const n = row.key.reduce<number>((t, s) => t + String(s).length + 2, 0) +
+      new TextEncoder().encode(JSON.stringify(row.value)).byteLength;
+    keys++;
+    bytes += n;
+    const acc = sites.get(row.key[1] as string) ?? { keys: 0, bytes: 0 };
+    acc.keys++;
+    acc.bytes += n;
+    sites.set(row.key[1] as string, acc);
+  }
   return { keys, bytes, sites: Object.fromEntries([...sites].sort()) };
 }
 
 /**
- * Irreversible: deletes every counter belonging to one site.
+ * Irreversible: deletes every counter and survey belonging to one site.
  *
- * Both prefixes: the day counters under `["c", site]` **and** the all-time
- * counter under `["t", site]`. Missing the second one would leave a live
- * pageview total behind after an erasure request, which is the one thing this
- * command exists to prevent.
+ * All prefixes: day counters, all-time totals and survey responses. Erasure
+ * must include survey comments even when a site has never collected a ping.
  */
 export async function deleteSite(kv: Deno.Kv, site: string): Promise<number> {
   let n = 0;
   let batch: Promise<unknown>[] = [];
-  for (const prefix of [["c", site], ["t", site]]) {
+  for (const prefix of [["c", site], ["t", site], ["survey", site]]) {
     for await (const row of kv.list({ prefix })) {
       batch.push(kv.delete(row.key));
       n++;
