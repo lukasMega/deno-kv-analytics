@@ -26,6 +26,9 @@ export async function listSites(kv: Deno.Kv): Promise<string[]> {
   for await (const row of kv.list({ prefix: ["survey"] })) {
     if (row.key.length === 5) seen.add(row.key[1] as string);
   }
+  for await (const row of kv.list({ prefix: ["latest"] })) {
+    seen.add(row.key[1] as string);
+  }
   return [...seen].sort();
 }
 
@@ -37,6 +40,10 @@ export async function usage(kv: Deno.Kv, site: string) {
     keys++;
     days.add(row.key[2] as string);
   }
+  // Latest-metadata rows are counted apart: they are not counters and their
+  // key layout is owned by latest.ts, so only the prefix is assumed here.
+  let latest = 0;
+  for await (const _ of kv.list({ prefix: ["latest", site] })) latest++;
   // The all-time counter lives outside the day-keyed prefix (it must survive
   // prune), so it is read separately — see main.ts `totalKey`.
   const total = await kv.get<Deno.KvU64>(["t", site, "pv"]);
@@ -49,6 +56,7 @@ export async function usage(kv: Deno.Kv, site: string) {
   return {
     keys: keys + surveys,
     surveys,
+    latest,
     days: days.size,
     first: sorted[0] ?? null,
     last: sorted.at(-1) ?? null,
@@ -96,15 +104,17 @@ export async function sizeOf(kv: Deno.Kv) {
     acc.bytes += n;
     sites.set(row.key[1] as string, acc);
   }
-  for await (const row of kv.list({ prefix: ["survey"] })) {
-    const n = row.key.reduce<number>((t, s) => t + String(s).length + 2, 0) +
-      new TextEncoder().encode(JSON.stringify(row.value)).byteLength;
-    keys++;
-    bytes += n;
-    const acc = sites.get(row.key[1] as string) ?? { keys: 0, bytes: 0 };
-    acc.keys++;
-    acc.bytes += n;
-    sites.set(row.key[1] as string, acc);
+  for (const prefix of ["survey", "latest"]) {
+    for await (const row of kv.list({ prefix: [prefix] })) {
+      const n = row.key.reduce<number>((t, s) => t + String(s).length + 2, 0) +
+        new TextEncoder().encode(JSON.stringify(row.value)).byteLength;
+      keys++;
+      bytes += n;
+      const acc = sites.get(row.key[1] as string) ?? { keys: 0, bytes: 0 };
+      acc.keys++;
+      acc.bytes += n;
+      sites.set(row.key[1] as string, acc);
+    }
   }
   return { keys, bytes, sites: Object.fromEntries([...sites].sort()) };
 }
@@ -118,7 +128,12 @@ export async function sizeOf(kv: Deno.Kv) {
 export async function deleteSite(kv: Deno.Kv, site: string): Promise<number> {
   let n = 0;
   let batch: Promise<unknown>[] = [];
-  for (const prefix of [["c", site], ["t", site], ["survey", site]]) {
+  for (
+    const prefix of [["c", site], ["t", site], ["survey", site], [
+      "latest",
+      site,
+    ]]
+  ) {
     for await (const row of kv.list({ prefix })) {
       batch.push(kv.delete(row.key));
       n++;
@@ -155,7 +170,8 @@ if (import.meta.main) {
     console.log(await usage(kv, args.site));
   } else if (cmd === "delete") {
     if (!args.site) throw new Error("--site is required");
-    const { keys } = await usage(kv, args.site);
+    const u = await usage(kv, args.site);
+    const keys = u.keys + u.latest;
     // Deleting a tenancy is unrecoverable — KV has no undo and no snapshot here.
     if (!args.yes) {
       console.error(

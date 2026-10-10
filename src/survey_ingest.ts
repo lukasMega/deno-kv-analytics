@@ -18,6 +18,8 @@ export interface SurveyPayload {
   c?: string;
   useForOther?: string;
   wantOther?: string;
+  /** Short-form marker; absent means the full survey. */
+  f?: "short";
 }
 
 function object(value: unknown): value is Record<string, unknown> {
@@ -63,6 +65,8 @@ export function validateSurvey(raw: unknown): SurveyPayload | null {
     ].slice(0, 8);
     if (ids.length) payload.dv = ids.join(",");
   }
+  // Exact match only: keeps the stored value a closed set.
+  if (raw.f === "short") payload.f = "short";
   if (typeof raw.c === "string") {
     const comment = raw.c.trim().slice(0, 280);
     if (comment) payload.c = comment;

@@ -54,3 +54,19 @@ Deno.test("dashboard rejects malformed series", () => {
     2,
   );
 });
+
+Deno.test("dashboard parses latest values separately from counts", () => {
+  const stats = parseStats({
+    country: { DE: 10, SK: 1 },
+    latest: {
+      country: ["SK"],
+      app_device: ["mk2", "k1"],
+      bad: [1],
+      wrong: "DE",
+    },
+  });
+  assertEquals(stats.latest, { country: ["SK"], app_device: ["mk2", "k1"] });
+  assertEquals(stats.country, { DE: 10, SK: 1 });
+  assertEquals(parseStats({ country: { DE: 10 } }).latest, undefined);
+  assertEquals(csv(stats), "dim,value,count\ncountry,DE,10\ncountry,SK,1");
+});

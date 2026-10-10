@@ -118,6 +118,19 @@ The Deno KV free tier is roughly **300K write units/month**. A pageview writes
 | bot hit                           | 2 units                      | does not compete — never writes `pv` |
 | desktop-app ping                  | 1–7 units normally; up to 14 | `app` plus valid optional dims       |
 
+Add **1 unit per `latest` dim** present in the ping (≈ 2–4 per pageview:
+`browser` and `os` always, `country` and `utm_source` when known; ≈ 1–5 for an
+app ping), so a typical pageview costs ≈ 14–16 units, ≈ 19–21K pv/mo. The
+`["latest", site, day, dim]` rows hold the last-seen value(s) so the dashboard
+can flag a NEW value. They are written only for an allowlist (`LATEST_DIMS` in
+`src/latest.ts`: `country`, `browser`, `os`, `utm_source`, `app_os`,
+`app_version`, `app_device`) — churny dims (`path`, `ref`, `hour`, `dowhour`) and
+the bot/probe/event dims are excluded, and bot hits write none, so they stay at
+2 units. Each dim keeps its own row; merging them would store a joint profile of
+the last ping. Rows from one commit do share a versionstamp, so someone with raw
+KV access can link the last-seen values of these dims for a day. That is
+accepted: it is one ping's worth of coarse attributes, not stored per visitor.
+
 Add **1 unit** to each pageview row for a site listed in `BADGE_SITES` (the
 all-time counter): 13 → ≈23K pv/mo, 14 → ≈21K pv/mo. Sites without a badge are
 unaffected, which is the reason that write is gated rather than unconditional.

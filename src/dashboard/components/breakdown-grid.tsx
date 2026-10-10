@@ -144,7 +144,15 @@ export function BreakdownGrid(
                           class="barFill"
                           style={{ width: `${Math.round(count / max * 100)}%` }}
                         />
-                        <span class="barLabel">{value}</span>
+                        <span class="barLabel" title={value}>{value}</span>
+                        {data.latest?.[dimension]?.includes(value) && (
+                          <span
+                            class="newBadge"
+                            title="Latest recorded value in this date range"
+                          >
+                            NEW
+                          </span>
+                        )}
                         <span class="barCount">
                           {count}
                           <span class="barPct">

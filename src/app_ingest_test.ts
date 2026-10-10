@@ -72,6 +72,22 @@ Deno.test("multi-deck: one app_device write per model", async () => {
   assertEquals(stats.app._, 1, "still one install");
   assertEquals(stats.app_device["elgato-mk2"], 1);
   assertEquals(stats.app_device["mirabox-k1pro"], 1);
+  assertEquals(stats.latest.app_device, ["elgato-mk2", "mirabox-k1pro"]);
+  kv.close();
+});
+
+Deno.test("latest app values follow ping order, not popularity or version", async () => {
+  const { kv, h } = await fixture();
+  await h(ping(encode({ os: "macos", v: "2.0.0", country: "DE" })));
+  await h(ping(encode({ os: "macos", v: "2.0.0", country: "DE" })));
+  await h(ping(encode({ os: "linux", v: "1.0.0", country: "SK" })));
+  const stats = await (await h(statsReq())).json();
+  assertEquals(stats.latest.app_version, ["1.0.0"]);
+  assertEquals(stats.latest.app_os, ["linux"]);
+  assertEquals(stats.latest.country, ["SK"]);
+  // `app` is a plain counter, not an allowlisted "new value" dim
+  assertEquals(stats.latest.app, undefined);
+  assertEquals(stats.app_version, { "1.0.0": 1, "2.0.0": 2 });
   kv.close();
 });
 

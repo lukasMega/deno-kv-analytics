@@ -5,6 +5,8 @@ export interface SurveySummary {
   site: string;
   sv: number;
   total: number;
+  /** Responses sent via the 3-question short form (`f: 'short'`). */
+  short: number;
   counts: Counts;
   nps: {
     score: number | null;
@@ -52,7 +54,7 @@ export async function readSurveys(
   if (
     !Number.isSafeInteger(sv) || sv < 1 || !validDay(from) || !validDay(to) ||
     from > to ||
-    !["os", "dv", "v"].includes(cross)
+    !["os", "dv", "v", "f"].includes(cross)
   ) {
     return new Response("invalid survey filters", { status: 400 });
   }
@@ -99,6 +101,7 @@ export async function readSurveys(
     site,
     sv,
     total: 0,
+    short: 0,
     counts: Object.create(null),
     nps: { score: null, answered: 0, promoters: 0, detractors: 0 },
     cross,
@@ -112,6 +115,7 @@ export async function readSurveys(
     if (row.key.length !== 5 && !(test && withHidden)) continue;
     const payload = row.value;
     summary.total++;
+    if (payload.f === "short") summary.short++;
     add(summary.counts, payload.a);
     const nps = payload.a.nps;
     if (typeof nps === "string" && /^(\d|10)$/.test(nps)) {
@@ -121,6 +125,8 @@ export async function readSurveys(
     }
     const groups = cross === "dv"
       ? (payload.dv ?? "unknown").split(",")
+      : cross === "f"
+      ? [payload.f ?? "full"]
       : [payload[cross as "os" | "v"] ?? "unknown"];
     for (const name of groups) {
       const group = summary.groups[name] ??= {
