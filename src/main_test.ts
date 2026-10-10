@@ -3,7 +3,8 @@
 // Run: deno task test
 import { assertEquals } from "@std/assert";
 import { botKind, parseUA, refGroup } from "./classify.ts";
-import { createHandler, eq } from "./main.ts";
+import { createHandler, eq, prune } from "./main.ts";
+import { readLatest, withLatest } from "./latest.ts";
 import { loadSites } from "./sites.ts";
 
 Deno.env.set("STATS_TOKEN", "testtoken");
@@ -49,6 +50,77 @@ Deno.test("pageview writes pv + derived dims", async () => {
   assertEquals(stats.os.Windows, 1);
   assertEquals(stats.lang.de, 1);
   assertEquals(Object.keys(stats.hour).length, 1); // one UTC-hour bucket
+  assertEquals(stats.latest.browser, ["Firefox"]);
+  assertEquals(stats.latest.os, ["Windows"]);
+  // allowlist only: churny/low-signal dims get no `latest` row
+  assertEquals(Object.keys(stats.latest).sort(), ["browser", "os"]);
+  for (const dim of ["path", "ref", "lang", "hour", "dowhour", "pv"]) {
+    assertEquals(stats.latest[dim], undefined, dim);
+  }
+  kv.close();
+});
+
+Deno.test("bot hits write counters but no latest rows", async () => {
+  const { kv, h } = await fixture();
+  await h(beacon(encode({ p: "/" }), "Googlebot/2.1"));
+  const stats = await (await h(statsReq(""))).json();
+  assertEquals(stats.bot.ua, 1);
+  assertEquals(stats.latest, {});
+  const rows = [];
+  for await (const r of kv.list({ prefix: ["latest"] })) rows.push(r.key);
+  assertEquals(rows, []);
+  kv.close();
+});
+
+Deno.test("withLatest ignores dims outside the allowlist", async () => {
+  const kv = await Deno.openKv(":memory:");
+  await withLatest(kv.atomic(), "test", "2026-08-01", [
+    ["path", "/x"],
+    ["country", "DE"],
+    ["country", "DE"],
+  ]).commit();
+  const keys = [];
+  for await (const r of kv.list({ prefix: ["latest"] })) keys.push(r.key);
+  assertEquals(keys, [["latest", "test", "2026-08-01", "country"]]);
+  kv.close();
+});
+
+Deno.test("readLatest returns {} for invalid dates instead of throwing", async () => {
+  const kv = await Deno.openKv(":memory:");
+  assertEquals(await readLatest(kv, "test", "nope", "2026-08-01"), {});
+  assertEquals(await readLatest(kv, "test", "2026-08-01", "9999-99-99"), {});
+  kv.close();
+});
+
+Deno.test("latest values respect ranges, sites, missing metadata and retention", async () => {
+  const { kv, h } = await fixture();
+  for (const [day, path] of [["2026-08-01", "/old"], ["2026-08-03", "/new"]]) {
+    await withLatest(
+      kv.atomic().sum(["c", "test", day, "country", path], 1n),
+      "test",
+      day,
+      [["country", path]],
+    ).commit();
+  }
+  await withLatest(kv.atomic(), "other", "2026-08-03", [["country", "/other"]])
+    .commit();
+  await kv.atomic().sum(["c", "test", "2026-08-02", "country", "DE"], 2n)
+    .commit();
+  const read = async (query: string) => (await h(statsReq(query))).json();
+  assertEquals((await read("from=2026-08-01&to=2026-08-03")).latest, {
+    country: ["/new"],
+  });
+  assertEquals((await read("from=2026-08-01&to=2026-08-02")).latest, {
+    country: ["/old"],
+  });
+  assertEquals((await read("day=2026-08-02")).latest, {});
+  assertEquals((await read("day=2026-08-03")).latest, { country: ["/new"] });
+  await prune(kv, ["test", "other"], new Date("2028-01-01T00:00:00Z"));
+  assertEquals((await read("day=2026-08-03")).latest, {});
+  assertEquals(
+    (await kv.get(["latest", "other", "2026-08-03", "country"])).value,
+    null,
+  );
   kv.close();
 });
 

@@ -144,6 +144,7 @@ export function SurveyPanel({ token, site, range, refresh }: {
             <option value="os">OS</option>
             <option value="dv">Model</option>
             <option value="v">App version</option>
+            <option value="f">Form (short/full)</option>
           </select>
         </label>
         {data?.admin && (
@@ -173,7 +174,9 @@ export function SurveyPanel({ token, site, range, refresh }: {
           <div class="kpiRow">
             <div class="kpiTile">
               <div class="kpiVal">{data.total}</div>
-              <div class="kpiLabel">responses · survey v{data.sv}</div>
+              <div class="kpiLabel">
+                responses · survey v{data.sv} · {data.short} short
+              </div>
             </div>
             <div class="kpiTile">
               <div class="kpiVal">{data.nps.score ?? "—"}</div>

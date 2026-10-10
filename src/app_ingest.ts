@@ -8,6 +8,7 @@
 //
 // Payload encoding matches the web beacon: base64(encodeURIComponent(JSON)).
 import { clamp, country } from "./classify.ts";
+import { withLatest } from "./latest.ts";
 
 // The client restricts each value to a closed vocabulary already; these are the
 // backstop that stops a spoofed payload from minting unbounded KV keys.
@@ -79,5 +80,5 @@ export async function writeAppPing(
   for (const [dim, value] of dims) {
     tx = tx.sum(["c", site, day, dim, value], 1n);
   }
-  await tx.commit();
+  await withLatest(tx, site, day, dims).commit();
 }

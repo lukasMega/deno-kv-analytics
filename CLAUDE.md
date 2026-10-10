@@ -145,6 +145,12 @@ Do not add a second pairwise dim without accepting the same tradeoff.
 
 **Every added dim costs a write unit per pageview.** Free tier ≈ 300K write
 units/mo; 12 base pageview dims ≈ 25K pv/mo. Adding a dim is a budget change.
+`["latest", site, day, dim]` rows (`withLatest`, `src/latest.ts`) add one `set`
+write unit per dim, but only for the `LATEST_DIMS` allowlist (country, browser,
+os, utm_source, app_os, app_version, app_device) — never path/ref/bot/event
+dims, and never in the bot branch. One row per dim, never merged into a joint
+profile; rows from one commit share a versionstamp, which raw KV access can use
+to link their last-seen values for a day (accepted). Numbers: `design.md`.
 
 **A null site writes nothing.** `resolveSite` returning `null` must still return
 the gif (never a 4xx — a prober must not learn which sites exist) and must not

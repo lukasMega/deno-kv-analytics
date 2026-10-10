@@ -31,7 +31,8 @@ flat `src/dashboard.js` stays deployable. Help remains plain JavaScript.
 - **`GET /surveys?site=<id>&sv=1&from=YYYY-MM-DD&to=YYYY-MM-DD&cross=os`** —
   authenticated response counts, NPS, comments and per-option cross-tabs.
   `sv` defaults to 1; omitted dates include all stored days. `cross` accepts
-  `os`, `dv` (model) or `v` (app version). Missing context appears as `unknown`.
+  `os`, `dv` (model), `v` (app version) or `f` (`short`/`full` form; the
+  summary also carries a `short` count). Missing context appears as `unknown`.
 - **`GET /surveys/export?site=<id>&sv=1&from=…&to=…`** — authenticated JSON
   response pages: `{site, sv, responses, cursor}`. Each response has its UTC
   `day` plus validated payload; pages contain at most 100 rows. Pass returned

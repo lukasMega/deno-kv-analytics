@@ -1,7 +1,7 @@
 import { assertEquals } from "@std/assert";
 import { parseArgs } from "@std/cli/parse-args";
 import { taskArgs } from "./kv.ts";
-import { sizeOf } from "./admin.ts";
+import { deleteSite, listSites, sizeOf, usage } from "./admin.ts";
 
 // The regression this exists for: `deno task admin -- size --db X` forwards a
 // literal `--`, parseArgs read it as the end-of-flags terminator, and every
@@ -32,5 +32,18 @@ Deno.test("sizeOf totals per site and buckets legacy rows apart", async () => {
   assertEquals(sites["acme"].keys, 2);
   assertEquals(sites["(legacy)"].keys, 1);
   assertEquals(bytes, sites["acme"].bytes + sites["(legacy)"].bytes);
+  kv.close();
+});
+
+Deno.test("latest metadata participates in site accounting and erasure", async () => {
+  const kv = await Deno.openKv(":memory:");
+  await kv.set(["latest", "acme", "2026-08-27", "country"], ["SK"]);
+  await kv.set(["latest", "other", "2026-08-27", "country"], ["DE"]);
+  assertEquals(await listSites(kv), ["acme", "other"]);
+  const u = await usage(kv, "acme");
+  assertEquals([u.keys, u.latest, u.days], [0, 1, 0]);
+  assertEquals((await sizeOf(kv)).sites.acme.keys, 1);
+  assertEquals(await deleteSite(kv, "acme"), 1);
+  assertEquals(await listSites(kv), ["other"]);
   kv.close();
 });

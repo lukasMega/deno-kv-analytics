@@ -26,6 +26,7 @@ import { writeAppPing } from "./app_ingest.ts";
 import { createSurveyLimiter, ingestSurvey } from "./survey_ingest.ts";
 import { readSurveys } from "./survey_reads.ts";
 import { openKv } from "./kv.ts";
+import { readLatest, withLatest } from "./latest.ts";
 import {
   badgeSites,
   readPvRange,
@@ -161,7 +162,8 @@ export function createHandler(kv: Deno.Kv, sites: Map<string, Site>) {
       // guesswork. Still a 200 gif, still no `pv` — visitor-visible behavior is
       // unchanged. Bots reaching `/e` at all are rare (the beacon needs JS + DOM,
       // so curl/wget/classic crawlers never get here), so 2 extra write units per
-      // hit is noise against the pageview budget.
+      // hit is noise against the pageview budget. No `latest` row here: bot dims
+      // are not visitor attributes, so it would double the cost for nothing.
       if (isbot(ua)) {
         await kv.atomic()
           .sum(["c", site, today(), "bot", "ua"], 1n)
@@ -251,7 +253,7 @@ export function createHandler(kv: Deno.Kv, sites: Map<string, Site>) {
       // write unit per pageview (12 → 13 dims), which is why it is gated on the
       // site having a badge to display it — see `totalKey`.
       if (!isEvent && badgeSites().has(site)) tx = tx.sum(totalKey(site), 1n);
-      await tx.commit();
+      await withLatest(tx, site, day, dims).commit();
       return gif();
     }
 
@@ -336,14 +338,20 @@ export function createHandler(kv: Deno.Kv, sites: Map<string, Site>) {
             ]);
           }
         }
+        const latest = await readLatest(kv, site, from, to);
         if (wantSeries) {
-          return Response.json({ site, from, to, series, ...out });
+          return Response.json({ site, from, to, series, latest, ...out });
         }
-        return Response.json({ site, from, to, ...out });
+        return Response.json({ site, from, to, latest, ...out });
       }
 
       const day = url.searchParams.get("day") ?? today();
-      return Response.json({ site, day, ...await readStats(kv, site, day) });
+      return Response.json({
+        site,
+        day,
+        latest: await readLatest(kv, site, day, day),
+        ...await readStats(kv, site, day),
+      });
     }
 
     // --- public README badge (SVG) ---
@@ -473,10 +481,12 @@ export async function prune(
   cutoff.setUTCDate(cutoff.getUTCDate() - RETENTION_DAYS);
   const cutoffDay = cutoff.toISOString().slice(0, 10);
   for (const site of sites) {
-    for await (const row of kv.list({ prefix: ["c", site] })) {
-      const day = row.key[2] as string;
-      if (day < cutoffDay) await kv.delete(row.key);
-      else break; // within a site, keys sort by day → we're done
+    for (const prefix of ["c", "latest"]) {
+      for await (const row of kv.list({ prefix: [prefix, site] })) {
+        const day = row.key[2] as string;
+        if (day < cutoffDay) await kv.delete(row.key);
+        else break; // within a site, keys sort by day → we're done
+      }
     }
   }
 }

@@ -22,12 +22,18 @@ export type Period =
 
 export interface Stats {
   site?: string;
+  latest?: Record<string, string[]>;
   series?: SeriesRow[];
   pv?: CountMap;
   uv?: CountMap;
   sessions?: CountMap;
   bounce?: CountMap;
-  [dimension: string]: CountMap | SeriesRow[] | string | undefined;
+  [dimension: string]:
+    | CountMap
+    | Record<string, string[]>
+    | SeriesRow[]
+    | string
+    | undefined;
 }
 
 export interface Site {

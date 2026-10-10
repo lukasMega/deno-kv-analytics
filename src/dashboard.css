@@ -160,6 +160,8 @@ button:disabled { cursor: default; opacity: .5; }
 .barLabel, .barCount { position: relative; z-index: 1; }
 .barLabel { color: #d8dee9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .barCount { color: #ebcb8b; padding-left: 10px; white-space: nowrap; }
+.newBadge { position: relative; z-index: 1; flex: none; align-self: center; margin: 0 6px; padding: 1px 4px; border: 1px solid #88c0d0; border-radius: 3px; color: #88c0d0; background: #10151c; font-size: 8px; line-height: 1.2; font-weight: 600; }
+.barRow:has(.newBadge) .barCount { margin-left: auto; }
 /* share of the dim total — muted so the raw count stays the primary number */
 .barPct { color: #6b7684; padding-left: 6px; }
 .bdMore { margin: 2px 0 0; padding: 2px 8px; background: none; border: 0; color: #6b7684; font: inherit; font-size: 11px; cursor: pointer; }

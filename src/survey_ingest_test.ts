@@ -162,6 +162,47 @@ Deno.test("other request detail is optional, trimmed, capped and tied to Other",
   }
 });
 
+Deno.test("short-form marker f is kept only when exactly 'short'", () => {
+  const short = { sv: 1, a: { rating: "4" } };
+  assertEquals(validateSurvey({ ...short, f: "short" })?.f, "short");
+  for (const f of ["long", "Short", 1, true, null, ["short"], "<script>"]) {
+    const result = validateSurvey({ ...short, f });
+    assertEquals(result, short);
+    assert(!("f" in result!));
+  }
+  assertEquals(validateSurvey(short), short);
+});
+
+Deno.test("short-form marker is stored, exported, counted and groupable; absence is full", async () => {
+  const { kv, h } = await fixture();
+  try {
+    const bodies = [
+      { sv: 1, f: "short", a: { rating: "4", nps: "9" } },
+      { sv: 1, f: "long", a: { rating: "3" } },
+      { sv: 1, a: { rating: "5" } },
+    ];
+    for (const body of bodies) {
+      assertEquals((await h(post(body), info())).status, 204);
+    }
+    const rows = await Array.fromAsync(kv.list({ prefix: ["survey"] }));
+    assertEquals(rows.filter((r) => (r.value as { f?: string }).f).length, 1);
+    const exported = await (await h(read("/surveys/export"))).json();
+    assertEquals(
+      exported.responses.filter((r: { f?: string }) => r.f === "short").length,
+      1,
+    );
+    const summary = await (await h(read())).json();
+    assertEquals(summary.total, 3);
+    assertEquals(summary.short, 1);
+    const byForm = await (await h(read("/surveys", "site=alpha&cross=f")))
+      .json();
+    assertEquals(byForm.groups.short.total, 1);
+    assertEquals(byForm.groups.full.total, 2);
+  } finally {
+    kv.close();
+  }
+});
+
 Deno.test("other use text survives storage, comments and export with full UTF-8 text", async () => {
   const { kv, h } = await fixture();
   try {

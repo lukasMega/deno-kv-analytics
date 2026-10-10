@@ -18,6 +18,17 @@ export function parseStats(value: unknown): Stats {
   const raw = value as Record<string, unknown>;
   const stats: Stats = {};
   for (const [key, entry] of Object.entries(raw)) {
+    if (key === "latest") {
+      if (entry && typeof entry === "object" && !Array.isArray(entry)) {
+        stats.latest = Object.fromEntries(
+          Object.entries(entry).filter(([, values]) =>
+            Array.isArray(values) &&
+            values.every((value) => typeof value === "string")
+          ),
+        );
+      }
+      continue;
+    }
     if (key === "series") continue;
     const counts = countMap(entry);
     if (counts) stats[key] = counts;
