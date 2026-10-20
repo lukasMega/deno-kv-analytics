@@ -22,6 +22,10 @@ const TZ_NAME = /^[\w.+-]+(?:\/[\w.+-]+){1,3}$/;
 // Client sends a locale tag (`sk-SK`) or a bare region; only the region half
 // is a country, so take the last `-` segment and validate that.
 const COUNTRY = /^[a-z]{2,3}$/i;
+// Docs topic ids, same closed shape and cap as the client's (DeckBridge
+// daily-ping.ts). Up to 32 write units, but at most one ping per install a day.
+const DOCS_TOPIC = /^[a-z0-9-]{1,32}$/;
+const MAX_DOCS_TOPICS = 32;
 
 /** Malformed input is ignored rather than rejected — a broken client should
  *  degrade to an empty ping, not to an error it has no way to act on. */
@@ -52,6 +56,15 @@ export function appDims(d: Record<string, string>): [string, string][] {
   if (SEMVER.test(d.v ?? "")) dims.push(["app_version", d.v]);
   const ids = (d.dv ?? "").split(",").filter(Boolean).slice(0, MAX_DEVICE_IDS);
   for (const id of ids) dims.push(["app_device", clamp(id)]);
+  // Deduped: a repeated topic in a spoofed payload would count twice in one ping.
+  const topics = new Set(
+    (typeof d.dc === "string" ? d.dc : "").split(",").filter((t) =>
+      DOCS_TOPIC.test(t)
+    ),
+  );
+  for (const topic of [...topics].slice(0, MAX_DOCS_TOPICS)) {
+    dims.push(["app_docs", topic]);
+  }
   return dims;
 }
 

@@ -72,6 +72,7 @@ field. Host mapping and the single-site fallback work exactly as they do for
 | `tz`          | `UTC±HH:MM` or `unknown`                                                                   | `app_tz_offset`                                                    | `app_tz_offset` breakdown; selecting a row opens current matching IANA zones |
 | `v`           | release version `MAJOR.MINOR.PATCH`                                                        | `app_version`                                                      | `app_version` breakdown                                                      |
 | `dv`          | comma-separated device ids; first eight non-empty values, each clamped to 128 characters   | one `app_device` count per id                                      | `app_device` breakdown                                                       |
+| `dc`          | comma-separated docs topic ids (`[a-z0-9-]`, ≤ 32 chars); first 32 distinct valid values   | one `app_docs` count per topic                                     | `app_docs` breakdown                                                         |
 | `country`     | locale tag or region, such as `sk-SK` or `SK`; final 2–3 letter segment is uppercased      | shared `country` dimension, unless a CDN country header is present | `country` breakdown                                                          |
 
 Every request also increments `app["_"]`, even when `v` is missing or malformed.
