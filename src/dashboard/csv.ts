@@ -25,6 +25,7 @@ export const CSV_DIMS = [
   "app_tz",
   "app_version",
   "app_device",
+  "app_docs",
   "bot",
   "bot_kind",
   "app",

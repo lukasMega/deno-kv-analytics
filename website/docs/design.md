@@ -70,10 +70,11 @@ increment `pv` — except the two behavioral-probe verdicts (`ev=hi`, `ev=bot`),
 which the server routes to their own dims.
 
 A **desktop-app ping** (`GET /a`) always writes `app`. Valid payload values may
-also write `app_os`, `app_os_version`, `app_tz_offset`, `app_version`, and up to
-eight `app_device` counters. `country` comes from a CDN header when available,
-otherwise from the payload's locale region. App pings never write pageview,
-visitor, session, or bot dims. See the complete
+also write `app_os`, `app_os_version`, `app_tz_offset`, `app_version`, up to
+eight `app_device` counters, and up to 32 `app_docs` counters (docs topics
+opened in the app since its last ping). `country` comes from a CDN header when
+available, otherwise from the payload's locale region. App pings never write
+pageview, visitor, session, or bot dims. See the complete
 [payload table](./dashboard.md#desktop-app-payload-a).
 
 Every counter value is clamped to **128 chars**, so a hostile or buggy client
@@ -116,7 +117,7 @@ The Deno KV free tier is roughly **300K write units/month**. A pageview writes
 | pageview, no interaction          | 12 units                     | ≈ **25K pv/mo**                      |
 | pageview + behavioral probe fires | 13 units                     | ≈ **23K pv/mo**                      |
 | bot hit                           | 2 units                      | does not compete — never writes `pv` |
-| desktop-app ping                  | 1–7 units normally; up to 14 | `app` plus valid optional dims       |
+| desktop-app ping                  | 1–7 units, +1 per docs topic | `app` plus valid optional dims       |
 
 Add **1 unit per `latest` dim** present in the ping (≈ 2–4 per pageview:
 `browser` and `os` always, `country` and `utm_source` when known; ≈ 1–5 for an

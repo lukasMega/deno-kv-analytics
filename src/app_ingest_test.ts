@@ -76,6 +76,17 @@ Deno.test("multi-deck: one app_device write per model", async () => {
   kv.close();
 });
 
+Deno.test("docs topics: one app_docs write per topic, no latest row", async () => {
+  const { kv, h } = await fixture();
+  await h(ping(encode({ v: "0.21.0", dc: "push-api,side-keys" })));
+
+  const stats = await (await h(statsReq())).json();
+  assertEquals(stats.app._, 1, "still one install");
+  assertEquals(stats.app_docs, { "push-api": 1, "side-keys": 1 });
+  assertEquals(stats.latest?.app_docs, undefined);
+  kv.close();
+});
+
 Deno.test("latest app values follow ping order, not popularity or version", async () => {
   const { kv, h } = await fixture();
   await h(ping(encode({ os: "macos", v: "2.0.0", country: "DE" })));
@@ -141,6 +152,29 @@ Deno.test("appDims: device ids are capped so a payload can't mint keys", () => {
   const dv = Array.from({ length: 30 }, (_, i) => `m${i}`).join(",");
   const devices = appDims({ dv }).filter(([dim]) => dim === "app_device");
   assertEquals(devices.length, 8);
+});
+
+const docsOf = (d: Record<string, string>) =>
+  appDims(d).filter(([dim]) => dim === "app_docs").map(([, v]) => v);
+
+Deno.test("appDims: off-shape docs topics are dropped, repeats count once", () => {
+  assertEquals(
+    docsOf({ dc: "push-api,Push-API,a b,,push-api,snake_case" }),
+    ["push-api"],
+  );
+  assertEquals(docsOf({ dc: `${"a".repeat(32)},${"b".repeat(33)}` }), [
+    "a".repeat(32),
+  ]);
+});
+
+Deno.test("appDims: docs topics are capped so a payload can't mint keys", () => {
+  const dc = Array.from({ length: 50 }, (_, i) => `t${i}`).join(",");
+  assertEquals(docsOf({ dc }).length, 32);
+});
+
+Deno.test("appDims: a non-string dc is ignored", () => {
+  const d = JSON.parse('{"dc":["push-api"]}');
+  assertEquals(docsOf(d), []);
 });
 
 Deno.test("appDims: an empty payload is still one install", () => {

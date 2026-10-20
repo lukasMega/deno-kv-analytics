@@ -26,6 +26,7 @@ const dimensions = [
   "app_tz_offset",
   "app_version",
   "app_device",
+  "app_docs",
 ];
 const bots = ["bot", "bot_kind"];
 const top = 10;
